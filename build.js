@@ -8,6 +8,13 @@ try {
 } catch (e) {
     console.warn('Sass not found, skipping SCSS compilation.');
 }
+
+// Build target: `node build.js --firefox` emits a Firefox-flavoured build in
+// dist-firefox/ (event-page background + gecko manifest keys). The default
+// (no flag) keeps producing the Chromium build in dist/ exactly as before.
+const target = process.argv.includes('--firefox') ? 'firefox' : 'chromium';
+const outDir = target === 'firefox' ? 'dist-firefox' : 'dist';
+
 const dracoPath = path.join(
     __dirname,
     'node_modules',
@@ -97,7 +104,7 @@ esbuild
     .build({
         ...commonConfig,
         entryPoints: [backgroundEntryPath],
-        outfile: 'dist/background.js',
+        outfile: `${outDir}/background.js`,
         bundle: true,
     })
     .catch(() => process.exit(1));
@@ -106,11 +113,11 @@ esbuild
     .build({
         ...commonConfig,
         entryPoints: [interceptEntryPath],
-        outfile: 'dist/intercept.js',
+        outfile: `${outDir}/intercept.js`,
         bundle: false,
     })
     .catch(() => process.exit(1));
-    
+
 const cssDir = path.join(__dirname, 'src', 'css');
 
 if (sass && fs.existsSync(cssDir)) {
@@ -118,14 +125,14 @@ if (sass && fs.existsSync(cssDir)) {
     if (fs.existsSync(mainScss)) {
         try {
             const result = sass.compile(mainScss, { style: 'compressed' });
-            if (!fs.existsSync('dist/css'))
-                fs.mkdirSync('dist/css', { recursive: true });
+            if (!fs.existsSync(`${outDir}/css`))
+                fs.mkdirSync(`${outDir}/css`, { recursive: true });
             fs.writeFileSync(
-                'dist/css/rovalra.css',
+                `${outDir}/css/rovalra.css`,
                 bannerText + '\n' + result.css,
             );
             console.log(
-                'Compiled SCSS: src/css/main.scss -> dist/css/rovalra.css',
+                `Compiled SCSS: src/css/main.scss -> ${outDir}/css/rovalra.css`,
             );
         } catch (e) {
             console.error('SCSS Compilation Failed:', e.message);
@@ -136,14 +143,14 @@ if (sass && fs.existsSync(cssDir)) {
     if (fs.existsSync(sitewideScss)) {
         try {
             const result = sass.compile(sitewideScss, { style: 'expanded' });
-            if (!fs.existsSync('dist/css'))
-                fs.mkdirSync('dist/css', { recursive: true });
+            if (!fs.existsSync(`${outDir}/css`))
+                fs.mkdirSync(`${outDir}/css`, { recursive: true });
             fs.writeFileSync(
-                'dist/css/sitewide.css',
+                `${outDir}/css/sitewide.css`,
                 bannerText + '\n' + result.css,
             );
             console.log(
-                'Compiled SCSS: src/css/sitewide.scss -> dist/css/sitewide.css',
+                `Compiled SCSS: src/css/sitewide.scss -> ${outDir}/css/sitewide.css`,
             );
         } catch (e) {
             console.error('SCSS Compilation Failed:', e.message);
@@ -168,7 +175,7 @@ if (sass && fs.existsSync(cssDir)) {
             const outputName = relativePath
                 .replace(/\\|\//g, '-')
                 .replace('.scss', '.css');
-            compileScssFile(filePath, path.join('dist', 'css', outputName));
+            compileScssFile(filePath, path.join(outDir, 'css', outputName));
         });
     }
 }
@@ -183,7 +190,7 @@ esbuild
     .build({
         ...commonConfig,
         entryPoints: [contentEntryPath],
-        outfile: 'dist/content.js',
+        outfile: `${outDir}/content.js`,
         bundle: true,
         // This injects Draco directly into the content script context for roavatar-renderer
         banner: {
@@ -202,7 +209,7 @@ if (fs.existsSync(cssDir)) {
             .build({
                 ...commonConfig,
                 entryPoints: cssFiles,
-                outdir: 'dist/css',
+                outdir: `${outDir}/css`,
             })
             .catch(() => process.exit(1));
     }
@@ -237,7 +244,9 @@ function processDirectory(src, dest) {
                     });
 
                     fs.writeFileSync(destPath, result.code);
-                    console.log(`Copied, Compressed & Bannered: ${entry.name}`);
+                    console.log(
+                        `Copied, Compressed & Bannered: ${entry.name}`,
+                    );
                 } catch (err) {
                     console.error(
                         `Error processing ${entry.name}, copying raw instead.`,
@@ -253,7 +262,10 @@ function processDirectory(src, dest) {
                         JSON.stringify(data, undefined, ' '),
                     );
                 } catch (err) {
-                    console.error(`Error processing ${entry.name}.`, err);
+                    console.error(
+                        `Error processing ${entry.name}, copying raw instead.`,
+                        err,
+                    );
                     throw err;
                 }
             } else {
@@ -264,22 +276,74 @@ function processDirectory(src, dest) {
 }
 
 if (fs.existsSync('public')) {
-    processDirectory('public', path.join('dist', 'public'));
+    processDirectory('public', path.join(outDir, 'public'));
 }
 if (fs.existsSync('assets')) {
-    processDirectory('assets', path.join('dist', 'assets'));
+    processDirectory('assets', path.join(outDir, 'assets'));
 }
 if (fs.existsSync('_locales')) {
-    processDirectory('_locales', path.join('dist', '_locales'));
+    processDirectory('_locales', path.join(outDir, '_locales'));
+}
+
+// Applies the Firefox-specific manifest differences on top of the Chromium
+// manifest (which stays untouched as the source of truth).
+function buildFirefoxManifest(manifestJson) {
+    // Firefox has no background.service_worker support (bug 1573659); MV3
+    // backgrounds run as an event page declared with background.scripts.
+    if (manifestJson.background) {
+        delete manifestJson.background.service_worker;
+        manifestJson.background.scripts = ['background.js'];
+    }
+    // content_scripts.world: "MAIN" needs Firefox 128+; gecko.id is required
+    // to sign/load MV3 add-ons in Firefox and data_collection_permissions is
+    // required for add-ons submitted to addons.mozilla.org (tolerated since
+    // Firefox 128, older versions would reject the manifest).
+    manifestJson.browser_specific_settings = {
+        gecko: {
+            id: '{e7c2b9a4-5f13-4d6a-8b0e-3a9c7f2d61b4}',
+            strict_min_version: '128.0',
+            data_collection_permissions: {
+                required: ['none'],
+            },
+        },
+    };
+    // Firefox does not allow "contextMenus" in optional_permissions (it can
+    // only be a required permission there), so grant it up-front instead of
+    // relying on chrome.permissions.request().
+    if (Array.isArray(manifestJson.optional_permissions)) {
+        const optional = manifestJson.optional_permissions;
+        if (optional.includes('contextMenus')) {
+            manifestJson.optional_permissions = optional.filter(
+                (permission) => permission !== 'contextMenus',
+            );
+            if (!manifestJson.permissions.includes('contextMenus')) {
+                manifestJson.permissions = [
+                    ...manifestJson.permissions,
+                    'contextMenus',
+                ];
+            }
+            if (manifestJson.optional_permissions.length === 0) {
+                delete manifestJson.optional_permissions;
+            }
+        }
+    }
+    return manifestJson;
 }
 
 if (fs.existsSync('manifest.json')) {
     try {
         const manifestContent = fs.readFileSync('manifest.json', 'utf8');
-        const manifestJson = JSON.parse(manifestContent);
-        fs.writeFileSync('dist/manifest.json', JSON.stringify(manifestJson));
+        let manifestJson = JSON.parse(manifestContent);
+        if (target === 'firefox') {
+            manifestJson = buildFirefoxManifest(manifestJson);
+        }
+        if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+        fs.writeFileSync(
+            path.join(outDir, 'manifest.json'),
+            JSON.stringify(manifestJson),
+        );
     } catch (e) {
         console.log(e);
-        fs.copyFileSync('manifest.json', 'dist/manifest.json');
+        fs.copyFileSync('manifest.json', path.join(outDir, 'manifest.json'));
     }
 }

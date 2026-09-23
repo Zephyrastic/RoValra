@@ -660,8 +660,12 @@ async function initializePage() {
     };
 
     const scheduleSettingsMaintenance = () => {
-        if (typeof requestIdleCallback === 'function') {
-            requestIdleCallback(runSettingsMaintenance, { timeout: 5000 });
+        if (typeof window.requestIdleCallback === 'function') {
+            // Call through window: Firefox rejects unbound invocations
+            // ("does not implement interface Window") in strict mode.
+            window.requestIdleCallback(runSettingsMaintenance, {
+                timeout: 5000,
+            });
             return;
         }
 

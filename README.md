@@ -74,6 +74,43 @@ npm run build
 3. Import the folder that directly contains:
     - `manifest.json`
 
+### Firefox
+
+```bash
+npm install
+npm run build:firefox
+```
+
+This produces a Firefox-specific build in `dist-firefox/`. Firefox does not
+support Manifest V3 `background.service_worker`, so the Firefox build declares
+an event-page background (`background.scripts`) and adds the required gecko
+`browser_specific_settings` keys (extension id, `strict_min_version: 128.0`
+for `content_scripts.world: "MAIN"` support, and
+`data_collection_permissions`).
+
+Load it into Firefox (requires **Firefox 128 or newer**):
+
+1. Go to `about:debugging#/runtime/this-firefox`
+2. Click **Load Temporary Add-on…**
+3. Select `dist-firefox/manifest.json`
+
+> [!NOTE]
+> **Known Firefox limitation:** Firefox's declarative net request API rejects
+> redirects to `data:` URLs, so the **Early Access Programs Showcase**
+> (`ruleset_3`) silently uses the real Roblox `beta-programs` API response
+> instead of the fake showcase payload. All other features are unaffected.
+
+> [!NOTE]
+> `browser_specific_settings.gecko.data_collection_permissions` is currently
+> declared as `none`. Review this declaration against the extension's
+> networking behaviour before submitting to
+> [addons.mozilla.org](https://addons.mozilla.org/).
+>
+> `npm run lint:firefox` tolerates a single known linter error: `content.js`
+> is larger than the 5 MB parse limit because of the inlined Draco decoder
+> (the file itself is unchanged from the Chromium build). Any other
+> validation error still fails the lint.
+
 </details>
 
 ---

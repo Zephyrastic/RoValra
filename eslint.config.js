@@ -175,7 +175,7 @@ const customPlugin = {
 
 export default [
     {
-        ignores: ['dist/', 'node_modules/'],
+        ignores: ['dist/', 'dist-firefox/', 'node_modules/'],
     },
     js.configs.recommended,
     {

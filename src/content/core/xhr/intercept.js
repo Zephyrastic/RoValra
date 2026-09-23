@@ -1,27 +1,3 @@
-const AccessoryAssetTypes = [
-    8,
-    41,
-    42,
-    43,
-    44,
-    45,
-    46,
-    47,
-];
-
-const LayeredAssetTypes = [
-    64,
-    65,
-    66,
-    67,
-    68,
-    69,
-    70,
-    71,
-    72,
-    41,
-];
-
 (function () {
     'use strict';
 
@@ -29,6 +5,30 @@ const LayeredAssetTypes = [
         return;
     }
     window.__ROVALRA_INTERCEPTOR_SETUP__ = true;
+
+    const AccessoryAssetTypes = [
+        8,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+    ];
+
+    const LayeredAssetTypes = [
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        41,
+    ];
 
     const CATALOG_API_URL =
         'https://catalog.roblox.com/v1/catalog/items/details';

@@ -321,10 +321,23 @@ async function setupNavigationListener() {
         hasRequiredPermissions &&
         !chrome.webNavigation.onBeforeNavigate.hasListener(navigationListener)
     ) {
-        chrome.webNavigation.onBeforeNavigate.addListener(navigationListener, {
+        const navigationFilter = {
             url: [{ hostContains: '.roblox.com' }],
             urlExcludes: ['roblox-player:*'],
-        });
+        };
+        try {
+            chrome.webNavigation.onBeforeNavigate.addListener(
+                navigationListener,
+                navigationFilter,
+            );
+        } catch {
+            // Firefox rejects unknown filter properties ("urlExcludes")
+            // synchronously, so fall back to the include-only filter.
+            chrome.webNavigation.onBeforeNavigate.addListener(
+                navigationListener,
+                { url: navigationFilter.url },
+            );
+        }
     }
 }
 

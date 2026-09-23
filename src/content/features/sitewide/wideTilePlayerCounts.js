@@ -75,8 +75,11 @@ function abbr(number) {
 
 const scheduleIdle = (() => {
     let pending = false;
-    const requestIdle =
-        window.requestIdleCallback || ((callback) => setTimeout(callback, 300));
+    // Bind to window: Firefox rejects the call when the extracted method
+    // does not receive Window as its receiver (strict mode).
+    const requestIdle = window.requestIdleCallback
+        ? window.requestIdleCallback.bind(window)
+        : (callback) => setTimeout(callback, 300);
 
     return (callback) => {
         if (pending) return;
