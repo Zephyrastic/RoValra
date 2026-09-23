@@ -4,6 +4,7 @@ on:
     push:
         tags:
             - 'v*'
+    workflow_dispatch:
 
 jobs:
     build-and-package:
@@ -11,6 +12,12 @@ jobs:
             contents: write
 
         runs-on: ubuntu-latest
+
+        env:
+            # Step-level `if` cannot read the secrets context, so mirror the
+            # Chrome Web Store secret's presence into an env flag and skip the
+            # upload step on forks/clones that have no secrets configured.
+            HAS_CWS: ${{ secrets.EXTENSION_ID != '' }}
 
         steps:
             - name: Checkout code
@@ -51,9 +58,13 @@ jobs:
                       rovalra-${{ github.ref_name }}.zip
                       rovalra-${{ github.ref_name }}-firefox.zip
               env:
-                  GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+                  # ACCESS_TOKEN is optional; fall back to the workflow's own
+                  # token (the job has contents: write) so releases work on
+                  # repositories without that secret.
+                  GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN || github.token }}
 
             - name: Upload to Chrome Web Store
+              if: env.HAS_CWS == 'true'
               uses: mnao305/chrome-extension-upload@v6.0.0
               with:
                   file-path: rovalra-${{ github.ref_name }}.zip

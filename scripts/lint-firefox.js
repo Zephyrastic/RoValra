@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-// Runs web-ext lint against the Firefox build and tolerates exactly one known
-// validation error: FILE_TOO_LARGE for content.js. That file carries the
-// inlined Draco decoder (identical to the Chromium build), which pushes it
-// past the linter's 5 MB parse limit. Any other validation error still makes
-// this script exit non-zero.
+// Runs web-ext lint against the Firefox build. Every validation error is
+// blocking, matching AMO: addons-linter rejects JS files past its 5 MB parse
+// limit (FILE_TOO_LARGE) and AMO fails submission on any error. content.js
+// stays under that limit because the Firefox build ships the Draco decoder as
+// a separate content script (see build.js), so a FILE_TOO_LARGE here means a
+// real regression and must fail the build.
 const { spawnSync } = require('child_process');
 
 const sourceDir = process.argv[2] || 'dist-firefox';
@@ -37,33 +38,19 @@ const errors = report.errors || [];
 const warnings = report.warnings || [];
 const notices = report.notices || [];
 
-const tolerated = errors.filter(
-    (issue) => issue.code === 'FILE_TOO_LARGE' && issue.file === 'content.js',
-);
-const blocking = errors.filter(
-    (issue) => !(issue.code === 'FILE_TOO_LARGE' && issue.file === 'content.js'),
-);
-
 console.log(
     `web-ext lint (${sourceDir}): ` +
-        `${blocking.length} error(s), ` +
-        `${tolerated.length} tolerated, ` +
+        `${errors.length} error(s), ` +
         `${warnings.length} warning(s), ` +
         `${notices.length} notice(s)`,
 );
-for (const issue of blocking) {
+for (const issue of errors) {
     console.log(
         `ERROR ${issue.code}: ${issue.message} (${issue.file || 'unknown'})`,
-    );
-}
-for (const issue of tolerated) {
-    console.log(
-        `tolerated ${issue.code}: ${issue.file} exceeds the linter's 5MB parse ` +
-            'limit (Draco decoder inlined, same as the Chromium build)',
     );
 }
 for (const issue of warnings) {
     console.log(`warning ${issue.code}: ${issue.description || issue.message}`);
 }
 
-process.exit(blocking.length ? 1 : 0);
+process.exit(errors.length ? 1 : 0);

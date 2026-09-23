@@ -186,16 +186,36 @@ if (!fs.existsSync(dracoPath)) {
 }
 const dracoSource = fs.readFileSync(dracoPath, 'utf8');
 
+if (target === 'firefox') {
+    // AMO's addons-linter rejects JS files larger than 5MB ("File is too
+    // large to parse" is a validation error), so the Firefox build ships the
+    // Draco decoder as its own content script (it defines a plain global that
+    // content.js reads from the same isolated world) and minifies content.js
+    // to stay under the limit. The Chromium build keeps the inlined banner.
+    fs.mkdirSync(outDir, { recursive: true });
+    fs.copyFileSync(dracoPath, path.join(outDir, 'draco_decoder.js'));
+}
+
 esbuild
     .build({
         ...commonConfig,
         entryPoints: [contentEntryPath],
         outfile: `${outDir}/content.js`,
         bundle: true,
-        // This injects Draco directly into the content script context for roavatar-renderer
-        banner: {
-            js: bannerText + '\n' + dracoSource,
-        },
+        ...(target === 'firefox'
+            ? {
+                  minify: true,
+                  minifyWhitespace: true,
+                  minifySyntax: true,
+                  minifyIdentifiers: true,
+                  banner: { js: bannerText },
+              }
+            : {
+                  // This injects Draco directly into the content script context for roavatar-renderer
+                  banner: {
+                      js: bannerText + '\n' + dracoSource,
+                  },
+              }),
     })
     .catch(() => process.exit(1));
 if (fs.existsSync(cssDir)) {
@@ -324,6 +344,22 @@ function buildFirefoxManifest(manifestJson) {
             }
             if (manifestJson.optional_permissions.length === 0) {
                 delete manifestJson.optional_permissions;
+            }
+        }
+    }
+    // AMO refuses to parse JS files larger than 5MB, so the Firefox build
+    // moves the Draco decoder out of content.js (see build.js) and loads it
+    // as the preceding content script in the same isolated world, where its
+    // global is visible to content.js.
+    if (Array.isArray(manifestJson.content_scripts)) {
+        for (const cs of manifestJson.content_scripts) {
+            const js = cs.js;
+            if (
+                Array.isArray(js) &&
+                js.includes('content.js') &&
+                !js.includes('draco_decoder.js')
+            ) {
+                js.splice(js.indexOf('content.js'), 0, 'draco_decoder.js');
             }
         }
     }
