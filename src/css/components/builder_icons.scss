@@ -82,6 +82,26 @@ $preset-sizes: (
   font-display: swap;
 }
 
+// Bundled copies of Google's Material Icons fonts (Apache-2.0). The old
+// approach injected a fonts.googleapis.com <link> into the page, which fails
+// to load in some Firefox environments (content script runs on roblox.com,
+// where the stylesheet never arrives), leaving icon ligature names rendering
+// as literal overflowing text. Serving the fonts from the extension itself
+// uses the same mechanism as the Builder/RoValra fonts above, which load
+// reliably in both browsers. web_accessible_resources already covers
+// public/Assets/*.
+@font-face {
+  font-family: 'Material Icons';
+  src: url('../public/Assets/fonts/material-icons.woff2') format('woff2');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Material Icons Outlined';
+  src: url('../public/Assets/fonts/material-icons-outlined.woff2') format('woff2');
+  font-display: swap;
+}
+
 icon {
 
     --icon-size: 1em;

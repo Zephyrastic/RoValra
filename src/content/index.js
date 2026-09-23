@@ -736,16 +736,13 @@ async function initializePage() {
     rovalraIconsWOFF.as = 'font';
     rovalraIconsWOFF.type = 'font/woff2';
     rovalraIconsWOFF.crossOrigin = 'anonymous';
-    const googleIcons = document.createElement('link');
-    googleIcons.rel = 'preload';
-    googleIcons.href =
-        'https://fonts.googleapis.com/icon?family=Material+Icons+Outlined|Material+Icons&display=swap';
-    googleIcons.rel = 'stylesheet';
-    googleIcons.crossOrigin = 'anonymous';
+    // Material Icons fonts are no longer loaded via a fonts.googleapis.com
+    // <link>: that stylesheet never arrives in some Firefox environments and
+    // icon ligature names rendered as literal text. They are bundled under
+    // public/Assets/fonts and declared in builder_icons.scss instead.
 
     if (document.head) {
         document.head.append(
-            googleIcons,
             rovalraIconsWOFF,
             builderIconsReg,
             builderIconsFill,
@@ -755,7 +752,6 @@ async function initializePage() {
             if (document.head) {
                 obs.disconnect();
                 document.head.append(
-                    googleIcons,
                     rovalraIconsWOFF,
                     builderIconsReg,
                     builderIconsFill,
