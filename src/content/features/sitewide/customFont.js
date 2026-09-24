@@ -56,7 +56,10 @@ function resolveGoogleFont(input) {
     return null;
 }
 
-function applyCustomFont(input) {
+let applySequence = 0;
+
+async function applyCustomFont(input) {
+    const sequence = ++applySequence;
     removeCustomFont();
 
     const resolved = resolveGoogleFont(input);
@@ -67,17 +70,62 @@ function applyCustomFont(input) {
 
     const { importUrl, fontFamily } = resolved;
 
+    // The @import stylesheet never arrives in some Firefox environments (the
+    // same failure mode as the old fonts.googleapis.com icon <link>), so fetch
+    // the Google Fonts CSS through the background script first — with every
+    // font binary inlined as a data: URI — and fall back to a plain @import
+    // if the proxy fails.
+    let css = null;
+    try {
+        css = await fetchFontCssViaBackground(importUrl);
+    } catch (err) {
+        console.warn(
+            '[RoValra] customFont: background font fetch failed, falling back to @import',
+            err,
+        );
+    }
+
+    // A newer storage change superseded this request while it was in flight.
+    if (sequence !== applySequence) return;
+
     const style = document.createElement('style');
     style.id = 'rovalra-custom-font';
-    style.textContent = `
-        @import url('${importUrl}');
-
+    const fontRule = `
         * {
             font-family: '${fontFamily}', sans-serif !important;
         }
     `;
+    style.textContent = css ? `${css}\n${fontRule}` : `@import url('${importUrl}');\n${fontRule}`;
 
     document.head.appendChild(style);
+}
+
+function fetchFontCssViaBackground(importUrl) {
+    return new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage(
+            { action: 'rovalraGoogleFontCss', url: importUrl },
+            (response) => {
+                if (chrome.runtime.lastError) {
+                    reject(new Error(chrome.runtime.lastError.message));
+                    return;
+                }
+                if (
+                    !response ||
+                    response.failed ||
+                    typeof response.css !== 'string'
+                ) {
+                    reject(
+                        new Error(
+                            (response && response.error) ||
+                                'Font CSS proxy failed',
+                        ),
+                    );
+                    return;
+                }
+                resolve(response.css);
+            },
+        );
+    });
 }
 
 function removeCustomFont() {

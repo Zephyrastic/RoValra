@@ -15,9 +15,12 @@ jobs:
 
         env:
             # Step-level `if` cannot read the secrets context, so mirror the
-            # Chrome Web Store secret's presence into an env flag and skip the
-            # upload step on forks/clones that have no secrets configured.
-            HAS_CWS: ${{ secrets.EXTENSION_ID != '' }}
+            # secret presences into env flags and skip the optional steps on
+            # forks/clones that have no secrets configured. The Chrome Web
+            # Store upload needs all four of its secrets; AMO signing needs
+            # both API credentials.
+            HAS_CWS: ${{ secrets.EXTENSION_ID != '' && secrets.CLIENT_ID != '' && secrets.CLIENT_SECRET != '' && secrets.REFRESH_TOKEN != '' }}
+            HAS_AMO: ${{ secrets.AMO_API_KEY != '' && secrets.AMO_API_SECRET != '' }}
 
         steps:
             - name: Checkout code
@@ -51,12 +54,29 @@ jobs:
                   cd dist-firefox
                   zip -r ../rovalra-${{ github.ref_name }}-firefox.zip .
 
+            - name: Sign Firefox extension with AMO (unlisted)
+              if: env.HAS_AMO == 'true'
+              run: |
+                  npx web-ext sign \
+                    --api-key="$AMO_API_KEY" \
+                    --api-secret="$AMO_API_SECRET" \
+                    --channel=unlisted \
+                    --source-dir=dist-firefox \
+                    --artifacts-dir=amo-signed
+              env:
+                  AMO_API_KEY: ${{ secrets.AMO_API_KEY }}
+                  AMO_API_SECRET: ${{ secrets.AMO_API_SECRET }}
+
             - name: Create GitHub Release
               uses: softprops/action-gh-release@v2
               with:
+                  # amo-signed/*.xpi only exists once the AMO secrets are
+                  # configured, so tolerate unmatched files.
+                  failOnUnmatchedFiles: false
                   files: |
                       rovalra-${{ github.ref_name }}.zip
                       rovalra-${{ github.ref_name }}-firefox.zip
+                      amo-signed/*.xpi
               env:
                   # ACCESS_TOKEN is optional; fall back to the workflow's own
                   # token (the job has contents: write) so releases work on
