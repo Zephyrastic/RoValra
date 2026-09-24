@@ -7,6 +7,7 @@
     "build": "npm run clean && node build.js",
     "build:firefox": "npm run clean:firefox && node build.js --firefox",
     "build:all": "npm run build && npm run build:firefox",
+    "pack:firefox": "npm run build:firefox && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/make-amo-zip.ps1",
     "clean": "rimraf dist",
     "clean:firefox": "rimraf dist-firefox",
     "lint": "eslint .",

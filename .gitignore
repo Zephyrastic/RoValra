@@ -5,6 +5,7 @@
 /dist
 /dist-firefox
 /build
+/RoValra-firefox.zip
 
 # Logs
 npm-debug.log*
