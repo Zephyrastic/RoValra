@@ -292,7 +292,7 @@ export async function addNavbarButton() {
                     iconsRow.style.gap = '8px';
                     iconsRow.style.marginTop = '6px';
                     iconsRow.style.flexWrap = 'wrap';
-                    iconsRow.style.color = 'var(--rovalra-main-text-color)';
+                    iconsRow.style.color = 'var(--color-content-emphasis, var(--rovalra-main-text-color))';
 
                     const addPlatIcon = (assetKey, tooltipText, filled = false, material = false) => {
                         const el = Icon({

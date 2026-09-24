@@ -35,7 +35,7 @@ async function addNavBtn() {
     console.log("add nav called!")
     currentNavItem = await createNavbarButton({
         id: 'rovalra-privacy-toggle-navbtn',
-        iconData: '<icon size="x-large" style="color: var(--rovalra-main-text-color)" filled>lock-closed</icon>',
+        iconData: '<icon size="x-large" style="color: var(--color-content-emphasis, var(--rovalra-main-text-color))" filled>lock-closed</icon>',
         tooltipText: await t('privacyToggles.nav.tooltip'),
     });
     addDropdown(currentNavItem);

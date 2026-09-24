@@ -39,7 +39,7 @@ export function createNavbarButton({ id, iconSvgData, iconData, tooltipText, onC
                 if (iconSvgData) {
                     try {
                         let svgData = iconSvgData.includes('<svg') ? iconSvgData : decodeURIComponent(iconSvgData.split(',')[1]);
-                        svgData = svgData.replace('fill="white"', 'fill="var(--rovalra-main-text-color)"');
+                        svgData = svgData.replace('fill="white"', 'fill="var(--color-content-emphasis, var(--rovalra-main-text-color))"');
                         spanIcon.innerHTML = svgData; //Verified
 
                         const svg = spanIcon.querySelector('svg');
