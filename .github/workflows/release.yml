@@ -77,6 +77,9 @@ jobs:
                       rovalra-${{ github.ref_name }}.zip
                       rovalra-${{ github.ref_name }}-firefox.zip
                       amo-signed/*.xpi
+                  # Auto-generate release notes from the commits/PRs since the
+                  # previous release, so every tagged version ships with a body.
+                  generate_release_notes: true
               env:
                   # ACCESS_TOKEN is optional; fall back to the workflow's own
                   # token (the job has contents: write) so releases work on
