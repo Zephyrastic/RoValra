@@ -461,6 +461,36 @@ async function callRobloxApiBackground(options) {
     return response;
 }
 
+async function fetchRovalraViaBackground(options = {}) {
+    const {
+        url,
+        method = 'GET',
+        headers = {},
+        body = null,
+        cache = 'default',
+    } = options;
+
+    const parsedUrl = new URL(url);
+    const isRovalraHost =
+        parsedUrl.protocol === 'https:' &&
+        (parsedUrl.hostname === 'rovalra.com' ||
+            parsedUrl.hostname.endsWith('.rovalra.com'));
+    if (!isRovalraHost) {
+        throw new Error('Unsupported rovalraFetch host');
+    }
+
+    const fetchOptions = {
+        method,
+        headers: { ...headers },
+        cache,
+    };
+    if (body && method !== 'GET' && method !== 'HEAD') {
+        fetchOptions.body = body;
+    }
+
+    return await fetch(parsedUrl.toString(), fetchOptions);
+}
+
 async function wearOutfit(outfitData) {
     const callWithRetry = async (options) => {
         let response;
@@ -2395,6 +2425,34 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         status: 500,
                         statusText: 'Extension Error',
                         body: null,
+                    });
+                });
+            return true;
+
+        case 'rovalraFetch':
+            fetchRovalraViaBackground(request.options)
+                .then(async (response) => {
+                    const headers = {};
+                    response.headers.forEach(
+                        (val, key) => (headers[key] = val),
+                    );
+                    const body = await response.text().catch(() => null);
+                    sendResponse({
+                        ok: response.ok,
+                        status: response.status,
+                        statusText: response.statusText,
+                        headers,
+                        body,
+                    });
+                })
+                .catch((err) => {
+                    console.error(
+                        'RoValra: Background rovalra fetch failed',
+                        err,
+                    );
+                    sendResponse({
+                        failed: true,
+                        error: err.message,
                     });
                 });
             return true;

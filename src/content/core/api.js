@@ -267,6 +267,97 @@ export function resetGameJoinErrorCount() {
     gameJoinErrorCount = 0;
 }
 
+const IS_FIREFOX = navigator.userAgent.includes('Firefox/');
+
+/**
+ * Firefox applies the page's Content-Security-Policy (connect-src) to
+ * requests made by content scripts, and Roblox's policy does not list
+ * rovalra.com, so every isRovalraApi fetch is blocked there. The
+ * background script is not subject to the page's CSP, so proxy the
+ * request through it instead (the rovalra.com server already satisfies
+ * CORS for the extension origin by echoing Access-Control-Allow-Origin).
+ */
+function fetchRovalraViaBackground(fullUrl, fetchOptions) {
+    return new Promise((resolve, reject) => {
+        const signal = fetchOptions.signal;
+        let settled = false;
+
+        const onAbort = () => {
+            if (settled) return;
+            settled = true;
+            reject(new DOMException('The operation was aborted.', 'AbortError'));
+        };
+
+        if (signal) {
+            if (signal.aborted) {
+                onAbort();
+                return;
+            }
+            signal.addEventListener('abort', onAbort, { once: true });
+        }
+
+        const settle = (fn, value) => {
+            if (settled) return;
+            settled = true;
+            if (signal) signal.removeEventListener('abort', onAbort);
+            fn(value);
+        };
+
+        chrome.runtime.sendMessage(
+            {
+                action: 'rovalraFetch',
+                options: {
+                    url: fullUrl,
+                    method: fetchOptions.method || 'GET',
+                    headers: Object.fromEntries(
+                        (fetchOptions.headers || new Headers()).entries(),
+                    ),
+                    body:
+                        typeof fetchOptions.body === 'string'
+                            ? fetchOptions.body
+                            : null,
+                    cache: fetchOptions.cache || 'default',
+                    responseType: 'text',
+                },
+            },
+            (response) => {
+                if (chrome.runtime.lastError || !response) {
+                    settle(
+                        reject,
+                        new TypeError(
+                            chrome.runtime.lastError?.message ||
+                                'NetworkError when attempting to fetch resource.',
+                        ),
+                    );
+                    return;
+                }
+                if (response.failed) {
+                    settle(
+                        reject,
+                        new TypeError(
+                            response.error ||
+                                'NetworkError when attempting to fetch resource.',
+                        ),
+                    );
+                    return;
+                }
+                try {
+                    const nullBodyStatus = [101, 103, 204, 205, 304].includes(
+                        response.status,
+                    );
+                    const { body, ...init } = response;
+                    settle(
+                        resolve,
+                        new Response(nullBodyStatus ? null : body, init),
+                    );
+                } catch (error) {
+                    settle(reject, error);
+                }
+            },
+        );
+    });
+}
+
 export async function callRobloxApi(options) {
     if (options.subdomain === 'gamejoin') {
         options = {
@@ -543,7 +634,14 @@ export async function callRobloxApi(options) {
         if (isRovalraApi) {
             let lastResponse;
             try {
-                lastResponse = await fetch(fullUrl, fetchOptions);
+                const shouldProxyViaBackground =
+                    IS_FIREFOX &&
+                    !(fetchOptions.body instanceof FormData) &&
+                    typeof chrome !== 'undefined' &&
+                    !!chrome.runtime?.sendMessage;
+                lastResponse = shouldProxyViaBackground
+                    ? await fetchRovalraViaBackground(fullUrl, fetchOptions)
+                    : await fetch(fullUrl, fetchOptions);
                 let newAccessToken = null;
                 try {
                     const bodyClone = await lastResponse.clone().json();
