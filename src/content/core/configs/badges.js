@@ -1,4 +1,5 @@
 import { getAssets, isUsingOldRovalraLogo } from '../assets.js';
+import { FIREFOX_PORT_BADGE_ICON } from './firefoxPortBadgeIcon.js';
 import {
     CREATOR_USER_ID,
     CONTRIBUTOR_USER_IDS,
@@ -11,6 +12,7 @@ import {
     TRANSLATOR_USER_IDS,
     GILBERT_USER_ID,
     Robux,
+    FIREFOX_PORT_USER_ID,
 } from './userIds.js';
 
 const assets = getAssets();
@@ -80,6 +82,25 @@ export const BADGE_CONFIG = {
         style: {},
         alwaysShow: true,
         shiny: true,
+    },
+    firefox_port: {
+        type: 'header',
+        userIds: [FIREFOX_PORT_USER_ID],
+        icon: FIREFOX_PORT_BADGE_ICON,
+        name: 'Created Firefox-Port',
+        tooltip: 'Created Firefox-Port',
+        confetti: FIREFOX_PORT_BADGE_ICON,
+        style: {},
+        shiny: true,
+        sparkles: true,
+    },
+    firefox_port_egg: {
+        type: 'badge',
+        userIds: [FIREFOX_PORT_USER_ID],
+        icon: FIREFOX_PORT_BADGE_ICON,
+        name: 'Created Firefox-Port',
+        tooltip: 'Created Firefox-Port',
+        confetti: FIREFOX_PORT_BADGE_ICON,
     },
     contributor: {
         type: 'header',

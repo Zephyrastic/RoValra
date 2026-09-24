@@ -18,3 +18,5 @@ yarn-error.log*
 
 .vscode/
 .idea/
+
+scripts/*.preview.svg
