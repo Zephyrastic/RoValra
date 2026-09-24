@@ -79,6 +79,13 @@ const commonConfig = {
 
     legalComments: 'none',
 
+    // Lets source code branch on the build target at compile time (used for
+    // Firefox-shipped defaults like telemetry blocking). The Chromium build
+    // gets `false`, the Firefox build `true`, from the same source.
+    define: {
+        __ROVALRA_FIREFOX__: target === 'firefox' ? 'true' : 'false',
+    },
+
     banner: {
         js: bannerText,
         css: bannerText,

@@ -2590,7 +2590,10 @@ export const SETTINGS_CONFIG = {
                 description:
                     'Blocks some of the tracking, analytics, and data collection Roblox uses while you browse the website.',
                 type: 'checkbox',
-                default: false,
+                // The Firefox build ships telemetry blocking on by default;
+                // Chromium stays opt-in. An explicitly stored user choice
+                // still wins over this default.
+                default: __ROVALRA_FIREFOX__,
                 contributors: ['476449201'],
                 childSettings: {
                     telemetryBlockerAggressiveEnabled: {

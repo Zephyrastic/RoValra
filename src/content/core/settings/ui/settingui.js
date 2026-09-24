@@ -10,6 +10,8 @@ const ACCOUNT_STANDING_TAB_IDS = new Set([
     'donatorPerks',
     'store',
     'changelogs',
+    'whatsNew',
+    'privateServers',
 ]);
 
 function isAccountStandingDirectLink() {

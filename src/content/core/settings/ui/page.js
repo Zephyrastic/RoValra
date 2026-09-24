@@ -20,6 +20,8 @@ const STATIC_SETTINGS_TAB_IDS = new Set([
     'donatorPerks',
     'store',
     'changelogs',
+    'whatsNew',
+    'privateServers',
     'accountStanding',
 ]);
 

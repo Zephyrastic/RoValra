@@ -187,6 +187,8 @@ export default [
                 ...globals.node,
                 ...globals.webextensions,
                 angular: 'readonly',
+                // Injected by build.js (esbuild define) per build target.
+                __ROVALRA_FIREFOX__: 'readonly',
             },
         },
         plugins: {

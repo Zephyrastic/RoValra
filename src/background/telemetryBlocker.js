@@ -108,7 +108,10 @@ export function initializeTelemetryBlocker() {
         pendingUpdate = pendingUpdate
             .then(async () => {
                 const settings = await chrome.storage.local.get({
-                    telemetryBlockerEnabled: false,
+                    // Firefox build defaults to blocking on (see the
+                    // __ROVALRA_FIREFOX__ define in build.js); an explicitly
+                    // stored user choice still wins over this default.
+                    telemetryBlockerEnabled: __ROVALRA_FIREFOX__,
                     telemetryBlockerAggressiveEnabled: false,
                 });
                 await chrome.declarativeNetRequest.updateDynamicRules({

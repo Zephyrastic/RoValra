@@ -1,0 +1,54 @@
+body.rovalra-settings-page {
+    .rovalra-whatsnew-status {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+    }
+
+    .rovalra-whatsnew-update-pill {
+        background-color: rgba(240, 178, 50, 0.16) !important;
+        border: 1px solid rgba(240, 178, 50, 0.55);
+        color: #f0b232 !important;
+
+        span {
+            color: #f0b232 !important;
+        }
+    }
+
+    .rovalra-whatsnew-up-to-date {
+        color: var(--rovalra-secondary-text-color);
+        font-size: 13px;
+    }
+
+    .rovalra-whatsnew-link {
+        flex-shrink: 0;
+        color: var(--rovalra-secondary-text-color);
+        font-size: 13px;
+        text-decoration: none;
+
+        &:hover {
+            color: var(--rovalra-main-text-color);
+            text-decoration: underline;
+        }
+    }
+
+    #unified-menu li[data-static-id='whatsNew'] a.menu-option-content {
+        .rovalra-whatsnew-sidebar-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 14px;
+            height: 14px;
+            margin-left: 6px;
+            border-radius: 50%;
+
+            background-color: #f0b232;
+            color: #1b1b1b;
+            font-size: 10px;
+            font-weight: 700;
+            line-height: 1;
+        }
+    }
+}

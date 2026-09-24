@@ -1,6 +1,8 @@
 import { getAssets } from '../../core/assets.js';
 import { getRegionData, loadDatacenterMap } from '../../core/regions.js';
 import { init as initBulkUnblock } from './bulkUnblock.js';
+import { renderWhatsNew, refreshWhatsNewSidebarBadge } from './whatsNew.js';
+import { renderPrivateServerManager } from './privateServerManager.js';
 import { observeElement, observeIntersection } from '../../core/observer.js';
 import { generateSingleSettingHTML } from '../../core/settings/generateSettings.js';
 import { SETTINGS_CONFIG } from '../../core/settings/settingConfig.js';
@@ -3021,6 +3023,32 @@ export const buttonData = [
         },
     },
     {
+        id: 'whatsNew',
+        get text() {
+            return ts('settings.tabs.whatsNew');
+        },
+        get content() {
+            return `
+            <div style="padding: 8px;">
+                <h2 style="margin-bottom: 15px; color: var(--rovalra-main-text-color) !important;">${ui('whatsNew.title')}</h2>
+                <div id="rovalra-whatsnew-container" style="color: var(--rovalra-secondary-text-color);">${ui('whatsNew.loading')}</div>
+            </div>`;
+        },
+    },
+    {
+        id: 'privateServers',
+        get text() {
+            return ts('settings.tabs.privateServers');
+        },
+        get content() {
+            return `
+            <div style="padding: 8px;">
+                <h2 style="margin-bottom: 15px; color: var(--rovalra-main-text-color) !important;">${ui('privateServers.title')}</h2>
+                <div id="rovalra-privateservers-container" style="color: var(--rovalra-secondary-text-color);">${ui('privateServers.loading')}</div>
+            </div>`;
+        },
+    },
+    {
         id: 'accountStanding',
         get text() {
             return ts('settings.tabs.accountStanding');
@@ -4689,13 +4717,19 @@ export async function updateContent(buttonInfo, contentContainer) {
     const buttonId = buttonInfo.id;
     const sanitizeConfig = { ADD_URI_SCHEMES: ['chrome-extension'] };
 
+    // Keep the What's New sidebar badge in sync whenever a settings tab
+    // renders; after the first fetch this is served from cache.
+    refreshWhatsNewSidebarBadge();
+
     if (
         buttonId === 'info' ||
         buttonId === 'credits' ||
         buttonId === 'accountStanding' ||
         buttonId === 'donatorPerks' ||
         buttonId === 'store' ||
-        buttonId === 'changelogs'
+        buttonId === 'changelogs' ||
+        buttonId === 'whatsNew' ||
+        buttonId === 'privateServers'
     ) {
         ((contentContainer.innerHTML = `
             <div id="settings-content" style="padding: 0; background-color: transparent !important;">
@@ -4856,6 +4890,24 @@ export async function updateContent(buttonInfo, contentContainer) {
         );
         if (changelogsContainer) {
             renderChangelogs(changelogsContainer);
+        }
+    }
+
+    if (buttonId === 'whatsNew') {
+        const whatsNewContainer = contentContainer.querySelector(
+            '#rovalra-whatsnew-container',
+        );
+        if (whatsNewContainer) {
+            renderWhatsNew(whatsNewContainer);
+        }
+    }
+
+    if (buttonId === 'privateServers') {
+        const privateServersContainer = contentContainer.querySelector(
+            '#rovalra-privateservers-container',
+        );
+        if (privateServersContainer) {
+            renderPrivateServerManager(privateServersContainer);
         }
     }
 
