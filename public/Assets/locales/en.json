@@ -823,6 +823,7 @@
         },
         "credits": {
             "contributorsTitle": "Contributors",
+            "translatorsTitle": "Translators",
             "featureCount_one": "{{count}} feature",
             "featureCount_other": "{{count}} features",
             "contributorTooltips": {
