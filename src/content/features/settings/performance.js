@@ -60,6 +60,8 @@ export async function renderPerformance(container) {
     let animationsHint = null;
     let rendererToggle = null;
     let rendererHint = null;
+    let bloatToggle = null;
+    let bloatHint = null;
 
     const syncAnimationsRow = (nextState) => {
         if (
@@ -107,6 +109,19 @@ export async function renderPerformance(container) {
         const nextState = await getPerformanceState();
         syncAnimationsRow(nextState);
         await syncRendererRow();
+        syncBloatRow(nextState);
+    };
+
+    const syncBloatRow = (nextState) => {
+        if (bloatToggle && typeof bloatToggle.setChecked === 'function') {
+            bloatToggle.setChecked(nextState.bloatRemoved === true);
+            bloatToggle.disabled = nextState.performanceMode === true;
+            bloatToggle.title =
+                nextState.performanceMode === true ? ui('bloatForced') : '';
+        }
+        if (bloatHint) {
+            bloatHint.hidden = nextState.performanceMode !== true;
+        }
     };
 
     const master = createOptionRow({
@@ -202,5 +217,39 @@ export async function renderPerformance(container) {
 
     card.appendChild(renderer.row);
     await syncRendererRow();
+
+    const bloat = createOptionRow({
+        titleText: ui('bloatTitle'),
+        descriptionText: ui('bloatDescription'),
+        checked: state.bloatRemoved === true,
+        onChange: async (newState) => {
+            bloat.toggle.disabled = true;
+            try {
+                await chrome.storage.local.set({
+                    [PERFORMANCE_STORAGE_KEYS.removeBloat]: newState,
+                });
+            } catch (error) {
+                console.warn(
+                    'RoValra: Failed to save the remove bloat setting',
+                    error,
+                );
+                if (typeof bloat.toggle.setChecked === 'function') {
+                    bloat.toggle.setChecked(!newState);
+                }
+            } finally {
+                syncBloatRow(await getPerformanceState());
+            }
+        },
+    });
+    bloatToggle = bloat.toggle;
+
+    bloatHint = document.createElement('div');
+    bloatHint.className = 'rovalra-perf-hint';
+    bloatHint.textContent = ui('bloatForced');
+    bloatHint.hidden = true;
+    bloat.description.after(bloatHint);
+
+    card.appendChild(bloat.row);
+    syncBloatRow(state);
     container.appendChild(card);
 }

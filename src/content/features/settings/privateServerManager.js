@@ -578,30 +578,41 @@ export async function renderPrivateServerManager(container) {
         const controls = rowControls.get(String(serverId));
         setRowError(controls?.errorBox, null);
         if (copyButton.disabled) return;
-        let details = getDetails(serverId);
-        let detailsFailed = false;
-        if (!details?.link) {
-            copyButton.disabled = true;
-            try {
-                details = await fetchServerDetails(serverId);
-                rememberDetails(serverId, details);
-                applyDetailsToRow(controls?.server, serverId, details, false);
-                await persistDetails();
-            } catch (error) {
-                console.error(
-                    'RoValra: Failed to load a private server link',
-                    error,
-                );
-                detailsFailed = true;
-                applyDetailsToRow(controls?.server, serverId, null, true);
+        // Copying always mints a fresh join link first, then copies it.
+        copyButton.disabled = true;
+        try {
+            const regenResponse = await callRobloxApi({
+                subdomain: 'games',
+                endpoint: `/v1/vip-servers/${serverId}`,
+                method: 'PATCH',
+                body: { newJoinCode: true },
+            });
+            if (!regenResponse.ok) {
+                throw new Error(await extractApiError(regenResponse));
             }
+            const details = await fetchServerDetails(serverId);
+            rememberDetails(serverId, details);
+            applyDetailsToRow(controls?.server, serverId, details, false);
+            await persistDetails();
+        } catch (error) {
+            console.error(
+                'RoValra: Failed to regenerate a private server link',
+                error,
+            );
+            applyDetailsToRow(controls?.server, serverId, null, true);
+            setRowError(
+                controls?.errorBox,
+                ui('updateFailed', {
+                    error: error?.message || ui('requestFailed'),
+                    interpolation: { escapeValue: false },
+                }),
+            );
+            flashButtonText(copyButton, ts('quickPlay.error'));
+            return;
         }
         const link = getDetails(serverId)?.link;
         if (!link) {
-            setRowError(
-                controls?.errorBox,
-                detailsFailed ? ui('statusLoadFailed') : ui('noLinkAvailable'),
-            );
+            setRowError(controls?.errorBox, ui('noLinkAvailable'));
             flashButtonText(copyButton, ts('quickPlay.error'));
             return;
         }

@@ -102,3 +102,16 @@ html.rovalra-disable-animations *::after {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
 }
+
+// RoValra "Remove bloat" (Performance tab, sitewide): hide known bloated
+// page modules - upsell banners, sponsored tiles, and the footer.
+html.rovalra-remove-bloat {
+    .subscribe-upsell-container.subscribe-upsell-banner,
+    .passkey-upsell-banner,
+    [data-testid='wide-game-tile-sponsored-footer'],
+    .sponsored-item-card,
+    .sponsored-ad-label,
+    #footer-container {
+        display: none !important;
+    }
+}
