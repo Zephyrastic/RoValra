@@ -97,13 +97,30 @@ html.rovalra-minimal {
     // on document.body, not inside tiles).
     .game-card-container,
     .base-tile,
-    .friends-carousel-tile,
     .avatar-card-container {
         border-radius: var(--rovalra-minimal-radius);
         border: 1px solid var(--rovalra-minimal-border);
         box-shadow: none !important;
         background-color: var(--rovalra-minimal-surface);
         overflow: hidden;
+    }
+
+    // Friend tiles stay boxless so the circular avatars carry the design;
+    // a hairline box around circles looks broken.
+    .friends-carousel-tile {
+        background: transparent !important;
+        border-color: transparent;
+        box-shadow: none !important;
+        text-align: center;
+    }
+
+    // Game-tile stats (like % + player count): centered and tucked slightly
+    // up under the title. translateY moves them visually without disturbing
+    // the tile's layout flow.
+    .game-card-container [data-testid^='game-tile-stats'] {
+        justify-content: center;
+        text-align: center;
+        transform: translateY(-2px);
     }
 
     // Monochrome primary buttons: inverted text on text color.
