@@ -132,6 +132,37 @@ function extractApiErrorMessage(data, fallback) {
     return apiMessage ? String(apiMessage) : fallback;
 }
 
+async function extractApiError(response) {
+    let reason = `HTTP ${response.status}`;
+    try {
+        reason = extractApiErrorMessage(await response.json(), reason);
+    } catch {
+        // Keep the generic message when the body isn't JSON.
+    }
+    return reason;
+}
+
+function isExpiredServer(server, details) {
+    if (details?.subscription?.expired === true) return true;
+    if (!server || !server.expirationDate) return false;
+    const expiration = new Date(server.expirationDate);
+    return (
+        !Number.isNaN(expiration.getTime()) &&
+        expiration.getTime() <= Date.now()
+    );
+}
+
+function setRowError(errorBox, message) {
+    if (!errorBox) return;
+    if (message) {
+        errorBox.textContent = message;
+        errorBox.hidden = false;
+    } else {
+        errorBox.textContent = '';
+        errorBox.hidden = true;
+    }
+}
+
 async function patchFriendsAllowed(privateServerId, allowed) {
     return callRobloxApi({
         subdomain: 'games',
@@ -149,13 +180,7 @@ async function patchServerName(privateServerId, name) {
         body: { name },
     });
     if (!response.ok) {
-        let reason = `HTTP ${response.status}`;
-        try {
-            reason = extractApiErrorMessage(await response.json(), reason);
-        } catch {
-            // Keep the generic message when the body isn't JSON.
-        }
-        throw new Error(reason);
+        throw new Error(await extractApiError(response));
     }
 }
 
@@ -335,6 +360,9 @@ export async function renderPrivateServerManager(container) {
     let searchInput = null;
     let list = null;
     const rowControls = new Map();
+    // Servers whose details request failed. Their controls stay interactive
+    // so the user can retry through the actions themselves.
+    const detailsFailed = new Set();
     let isRefreshing = false;
 
     function getDetails(serverId) {
@@ -353,29 +381,57 @@ export async function renderPrivateServerManager(container) {
         await setDetailsCache(merged);
     }
 
-    function applyDetailsToRow(serverId, details) {
+    function applyDetailsToRow(server, serverId, details, failed) {
         const controls = rowControls.get(String(serverId));
         if (!controls) return;
-        const friendsAllowed =
-            details?.permissions?.friendsAllowed === true;
+        const key = String(serverId);
+
+        if (failed) {
+            detailsFailed.add(key);
+            // Status unknown: keep the controls usable instead of dead.
+            if (controls.toggle) {
+                controls.toggle.disabled = false;
+                controls.toggle.title = ui('statusLoadFailed');
+            }
+            if (controls.copyButton) {
+                controls.copyButton.disabled = false;
+                controls.copyButton.title = ui('statusLoadFailed');
+            }
+            return;
+        }
+
+        detailsFailed.delete(key);
+        const expired = isExpiredServer(server, details);
+        const friendsAllowed = details?.permissions?.friendsAllowed === true;
         if (
             controls.toggle &&
             typeof controls.toggle.setChecked === 'function'
         ) {
             controls.toggle.setChecked(friendsAllowed);
-            controls.toggle.disabled = false;
+            controls.toggle.disabled = expired;
+            controls.toggle.title = expired ? ui('serverExpired') : '';
         }
         if (controls.copyButton) {
-            controls.copyButton.disabled = !details?.link;
+            const hasLink = Boolean(details?.link);
+            controls.copyButton.disabled = expired || !hasLink;
+            if (expired) {
+                controls.copyButton.title = ui('serverExpired');
+            } else if (!hasLink) {
+                controls.copyButton.title = ui('noLinkAvailable');
+            } else {
+                controls.copyButton.title = '';
+            }
         }
     }
 
     async function handleToggle(serverId, newState, toggle) {
+        const controls = rowControls.get(String(serverId));
+        setRowError(controls?.errorBox, null);
         toggle.disabled = true;
         try {
             const response = await patchFriendsAllowed(serverId, newState);
             if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
+                throw new Error(await extractApiError(response));
             }
             const previous = getDetails(serverId) || {};
             rememberDetails(serverId, {
@@ -394,8 +450,19 @@ export async function renderPrivateServerManager(container) {
             if (typeof toggle.setChecked === 'function') {
                 toggle.setChecked(!newState);
             }
+            setRowError(
+                controls?.errorBox,
+                ui('updateFailed', {
+                    error: error?.message || ui('requestFailed'),
+                    interpolation: { escapeValue: false },
+                }),
+            );
         } finally {
-            toggle.disabled = false;
+            const expired = isExpiredServer(
+                controls?.server,
+                getDetails(serverId),
+            );
+            toggle.disabled = expired;
         }
     }
 
@@ -409,7 +476,7 @@ export async function renderPrivateServerManager(container) {
             return;
         }
         renameInput.disabled = true;
-        errorBox.hidden = true;
+        setRowError(errorBox, null);
         try {
             await patchServerName(serverId, newName);
             server.name = newName;
@@ -420,11 +487,13 @@ export async function renderPrivateServerManager(container) {
         } catch (error) {
             console.error('RoValra: Failed to rename a private server', error);
             renameInput.value = server.name || '';
-            errorBox.textContent = ui('renameFailed', {
-                error: error?.message || ui('requestFailed'),
-                interpolation: { escapeValue: false },
-            });
-            errorBox.hidden = false;
+            setRowError(
+                errorBox,
+                ui('renameFailed', {
+                    error: error?.message || ui('requestFailed'),
+                    interpolation: { escapeValue: false },
+                }),
+            );
         } finally {
             renameInput.disabled = false;
         }
@@ -439,23 +508,33 @@ export async function renderPrivateServerManager(container) {
     }
 
     async function handleCopyLink(serverId, copyButton) {
+        const controls = rowControls.get(String(serverId));
+        setRowError(controls?.errorBox, null);
         if (copyButton.disabled) return;
         let details = getDetails(serverId);
+        let detailsFailed = false;
         if (!details?.link) {
+            copyButton.disabled = true;
             try {
                 details = await fetchServerDetails(serverId);
                 rememberDetails(serverId, details);
-                applyDetailsToRow(serverId, details);
+                applyDetailsToRow(controls?.server, serverId, details, false);
                 await persistDetails();
             } catch (error) {
                 console.error(
                     'RoValra: Failed to load a private server link',
                     error,
                 );
+                detailsFailed = true;
+                applyDetailsToRow(controls?.server, serverId, null, true);
             }
         }
         const link = getDetails(serverId)?.link;
         if (!link) {
+            setRowError(
+                controls?.errorBox,
+                detailsFailed ? ui('statusLoadFailed') : ui('noLinkAvailable'),
+            );
             flashButtonText(copyButton, ts('quickPlay.error'));
             return;
         }
@@ -467,7 +546,13 @@ export async function renderPrivateServerManager(container) {
                 'RoValra: Failed to copy a private server link',
                 error,
             );
-            flashButtonText(copyButton, ts('quickPlay.error'));
+            setRowError(
+                controls?.errorBox,
+                ui('updateFailed', {
+                    error: error?.message || ui('requestFailed'),
+                    interpolation: { escapeValue: false },
+                }),
+            );
         }
     }
 
@@ -541,9 +626,6 @@ export async function renderPrivateServerManager(container) {
             'aria-label',
             ts('privateServer.friendsAllowed'),
         );
-        if (!knownDetails) toggle.disabled = true;
-
-        toggleRow.append(toggleLabel, toggle);
 
         const copyButton = createButton(ts('quickPlay.copyLink'), 'secondary', {
             onClick: () => {
@@ -551,12 +633,23 @@ export async function renderPrivateServerManager(container) {
             },
         });
         copyButton.classList.add('rovalra-psm-copy-button');
-        if (!knownDetails?.link) copyButton.disabled = true;
 
+        toggleRow.append(toggleLabel, toggle);
         actions.append(toggleRow, copyButton);
 
         row.append(thumbWrap, info, actions);
-        rowControls.set(String(serverId), { toggle, copyButton });
+        rowControls.set(String(serverId), {
+            toggle,
+            copyButton,
+            errorBox,
+            server,
+        });
+        if (knownDetails) {
+            applyDetailsToRow(server, serverId, knownDetails, false);
+        } else {
+            toggle.disabled = true;
+            copyButton.disabled = true;
+        }
         return row;
     }
 
@@ -669,12 +762,13 @@ export async function renderPrivateServerManager(container) {
                 try {
                     const details = await fetchServerDetails(serverId);
                     rememberDetails(serverId, details);
-                    applyDetailsToRow(serverId, details);
+                    applyDetailsToRow(server, serverId, details, false);
                 } catch (error) {
                     console.warn(
                         'RoValra: Failed to load private server details',
                         error,
                     );
+                    applyDetailsToRow(server, serverId, null, true);
                 }
             }
         }
