@@ -404,6 +404,14 @@ export async function renderPrivateServerManager(container) {
         const expired = isExpiredServer(server, details);
         const friendsAllowed = details?.permissions?.friendsAllowed === true;
         if (
+            controls.joiningToggle &&
+            typeof controls.joiningToggle.setChecked === 'function'
+        ) {
+            controls.joiningToggle.setChecked(details?.active !== false);
+            controls.joiningToggle.disabled = expired;
+            controls.joiningToggle.title = expired ? ui('serverExpired') : '';
+        }
+        if (
             controls.toggle &&
             typeof controls.toggle.setChecked === 'function'
         ) {
@@ -445,6 +453,65 @@ export async function renderPrivateServerManager(container) {
         } catch (error) {
             console.error(
                 'RoValra: Failed to toggle friends allowed on a private server',
+                error,
+            );
+            if (typeof toggle.setChecked === 'function') {
+                toggle.setChecked(!newState);
+            }
+            setRowError(
+                controls?.errorBox,
+                ui('updateFailed', {
+                    error: error?.message || ui('requestFailed'),
+                    interpolation: { escapeValue: false },
+                }),
+            );
+        } finally {
+            const expired = isExpiredServer(
+                controls?.server,
+                getDetails(serverId),
+            );
+            toggle.disabled = expired;
+        }
+    }
+
+    async function handleJoiningToggle(serverId, newState, toggle) {
+        const controls = rowControls.get(String(serverId));
+        setRowError(controls?.errorBox, null);
+        toggle.disabled = true;
+        try {
+            const response = await callRobloxApi({
+                subdomain: 'games',
+                endpoint: `/v1/vip-servers/${serverId}`,
+                method: 'PATCH',
+                body: { active: newState },
+            });
+            if (!response.ok) {
+                throw new Error(await extractApiError(response));
+            }
+            // The active state affects link availability, so refresh the
+            // details to keep the Copy button and cache in sync.
+            try {
+                const details = await fetchServerDetails(serverId);
+                rememberDetails(serverId, details);
+                applyDetailsToRow(controls?.server, serverId, details, false);
+            } catch (error) {
+                console.warn(
+                    'RoValra: Failed to refresh private server details',
+                    error,
+                );
+                const previous = getDetails(serverId) || {};
+                rememberDetails(serverId, { ...previous, active: newState });
+                applyDetailsToRow(
+                    controls?.server,
+                    serverId,
+                    getDetails(serverId),
+                    false,
+                );
+            }
+            await persistDetails();
+        } catch (error) {
+            console.error(
+                'RoValra: Failed to toggle allow joining on a private server',
                 error,
             );
             if (typeof toggle.setChecked === 'function') {
@@ -608,13 +675,34 @@ export async function renderPrivateServerManager(container) {
         const actions = document.createElement('div');
         actions.className = 'rovalra-psm-actions';
 
+        const knownDetails = getDetails(serverId);
+
+        const joiningRow = document.createElement('div');
+        joiningRow.className = 'rovalra-psm-toggle-row';
+
+        const joiningLabel = document.createElement('span');
+        joiningLabel.textContent = ts('privateServer.allowJoining');
+
+        const joiningToggle = createToggle({
+            checked: knownDetails?.active !== false,
+            onChange: (newState) => {
+                handleJoiningToggle(serverId, newState, joiningToggle);
+            },
+        });
+        joiningToggle.classList.add('rovalra-psm-joining-toggle');
+        joiningToggle.setAttribute(
+            'aria-label',
+            ts('privateServer.allowJoining'),
+        );
+
+        joiningRow.append(joiningLabel, joiningToggle);
+
         const toggleRow = document.createElement('div');
         toggleRow.className = 'rovalra-psm-toggle-row';
 
         const toggleLabel = document.createElement('span');
         toggleLabel.textContent = ts('privateServer.friendsAllowed');
 
-        const knownDetails = getDetails(serverId);
         const toggle = createToggle({
             checked: knownDetails?.permissions?.friendsAllowed === true,
             onChange: (newState) => {
@@ -635,10 +723,11 @@ export async function renderPrivateServerManager(container) {
         copyButton.classList.add('rovalra-psm-copy-button');
 
         toggleRow.append(toggleLabel, toggle);
-        actions.append(toggleRow, copyButton);
+        actions.append(joiningRow, toggleRow, copyButton);
 
         row.append(thumbWrap, info, actions);
         rowControls.set(String(serverId), {
+            joiningToggle,
             toggle,
             copyButton,
             errorBox,
@@ -647,6 +736,7 @@ export async function renderPrivateServerManager(container) {
         if (knownDetails) {
             applyDetailsToRow(server, serverId, knownDetails, false);
         } else {
+            joiningToggle.disabled = true;
             toggle.disabled = true;
             copyButton.disabled = true;
         }
