@@ -4,6 +4,7 @@ import { observeElement } from '../../core/observer.js';
 const ANIMATIONS_CLASS = 'rovalra-disable-animations';
 const PERFORMANCE_CLASS = 'rovalra-performance-mode';
 const BLOAT_CLASS = 'rovalra-remove-bloat';
+const MINIMAL_CLASS = 'rovalra-minimal';
 
 const FROZEN_ATTR = 'data-rovalra-perf-frozen';
 
@@ -11,6 +12,7 @@ export const PERFORMANCE_STORAGE_KEYS = {
     performanceMode: 'performanceModeEnabled',
     disableAnimations: 'disableAnimationsEnabled',
     removeBloat: 'removeBloatEnabled',
+    minimalDesign: 'minimalDesignEnabled',
 };
 
 export async function getPerformanceState() {
@@ -19,6 +21,7 @@ export async function getPerformanceState() {
             [PERFORMANCE_STORAGE_KEYS.performanceMode]: false,
             [PERFORMANCE_STORAGE_KEYS.disableAnimations]: false,
             [PERFORMANCE_STORAGE_KEYS.removeBloat]: false,
+            [PERFORMANCE_STORAGE_KEYS.minimalDesign]: false,
         });
         const performanceMode =
             stored[PERFORMANCE_STORAGE_KEYS.performanceMode] === true;
@@ -26,10 +29,15 @@ export async function getPerformanceState() {
             stored[PERFORMANCE_STORAGE_KEYS.disableAnimations] === true;
         const removeBloat =
             stored[PERFORMANCE_STORAGE_KEYS.removeBloat] === true;
+        // Minimalist Design is an independent look, never forced by
+        // Performance Mode.
+        const minimalDesign =
+            stored[PERFORMANCE_STORAGE_KEYS.minimalDesign] === true;
         return {
             performanceMode,
             disableAnimations,
             removeBloat,
+            minimalDesign,
             // Performance mode bundles every performance option, so it
             // forces animations off, bloat removal on, while enabled.
             animationsOff: performanceMode || disableAnimations,
@@ -41,6 +49,7 @@ export async function getPerformanceState() {
             performanceMode: false,
             disableAnimations: false,
             removeBloat: false,
+            minimalDesign: false,
             animationsOff: false,
             bloatRemoved: false,
         };
@@ -247,6 +256,7 @@ function applyPerformanceState(state) {
     if (!root) return;
     root.classList.toggle(ANIMATIONS_CLASS, state.animationsOff === true);
     root.classList.toggle(BLOAT_CLASS, state.bloatRemoved === true);
+    root.classList.toggle(MINIMAL_CLASS, state.minimalDesign === true);
     root.classList.toggle(PERFORMANCE_CLASS, state.performanceMode === true);
     setAnimationsWatching(state.animationsOff === true);
 }
@@ -262,7 +272,8 @@ export async function init() {
         if (
             changes[PERFORMANCE_STORAGE_KEYS.performanceMode] ||
             changes[PERFORMANCE_STORAGE_KEYS.disableAnimations] ||
-            changes[PERFORMANCE_STORAGE_KEYS.removeBloat]
+            changes[PERFORMANCE_STORAGE_KEYS.removeBloat] ||
+            changes[PERFORMANCE_STORAGE_KEYS.minimalDesign]
         ) {
             refreshPerformanceState();
         }

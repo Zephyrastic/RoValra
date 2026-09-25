@@ -1,0 +1,53 @@
+// RoValra "Minimalist Design" (Performance tab): a calm, system-following
+// skin - flattened tile surfaces, hairline borders, system type, and a
+// single blue accent. Visual-only rules; nothing here hides content or
+// changes layout, so it cannot break page functionality.
+html.rovalra-minimal {
+    --rovalra-minimal-bg: #f3f4f6;
+    --rovalra-minimal-text: #17171a;
+    --rovalra-minimal-accent: #2f6fed;
+    --rovalra-minimal-border: rgba(20, 20, 30, 0.1);
+    color-scheme: light;
+
+    body {
+        background-color: var(--rovalra-minimal-bg) !important;
+        color: var(--rovalra-minimal-text);
+        font-family:
+            -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui,
+            sans-serif;
+    }
+
+    h1,
+    h2,
+    h3 {
+        letter-spacing: -0.011em;
+    }
+
+    a:not([class*='btn']) {
+        color: var(--rovalra-minimal-accent);
+    }
+
+    .game-card-container,
+    .base-tile,
+    .friends-carousel-tile,
+    .avatar-card-container {
+        border-radius: 10px;
+        border: 1px solid var(--rovalra-minimal-border);
+        box-shadow: none !important;
+    }
+
+    .btn-cta-md {
+        background-color: var(--rovalra-minimal-accent);
+        border-color: transparent;
+    }
+}
+
+@media (prefers-color-scheme: dark) {
+    html.rovalra-minimal {
+        --rovalra-minimal-bg: #101013;
+        --rovalra-minimal-text: #ececf1;
+        --rovalra-minimal-accent: #6ea8f2;
+        --rovalra-minimal-border: rgba(255, 255, 255, 0.1);
+        color-scheme: dark;
+    }
+}

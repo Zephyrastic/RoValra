@@ -251,5 +251,30 @@ export async function renderPerformance(container) {
 
     card.appendChild(bloat.row);
     syncBloatRow(state);
+
+    const design = createOptionRow({
+        titleText: ui('designTitle'),
+        descriptionText: ui('designDescription'),
+        checked: state.minimalDesign === true,
+        onChange: async (newState) => {
+            design.toggle.disabled = true;
+            try {
+                await chrome.storage.local.set({
+                    [PERFORMANCE_STORAGE_KEYS.minimalDesign]: newState,
+                });
+            } catch (error) {
+                console.warn(
+                    'RoValra: Failed to save the minimalist design setting',
+                    error,
+                );
+                if (typeof design.toggle.setChecked === 'function') {
+                    design.toggle.setChecked(!newState);
+                }
+            } finally {
+                design.toggle.disabled = false;
+            }
+        },
+    });
+    card.appendChild(design.row);
     container.appendChild(card);
 }
