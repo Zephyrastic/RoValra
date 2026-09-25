@@ -1067,7 +1067,7 @@
                 "bloatDescription": "Hides known bloated page modules sitewide: upsell banners, sponsored tiles, and the footer.",
                 "bloatForced": "Forced on while Performance Mode is enabled.",
                 "designTitle": "Minimalist Design",
-                "designDescription": "A calm skin that follows your system theme: flattened surfaces, system type, and a single blue accent.",
+                "designDescription": "A strict black-and-white skin that follows your system theme: flat chrome, thin borders, system type, monochrome links and buttons.",
                 "rendererTitle": "3D Profile Renderer",
                 "rendererDescription": "Turn off RoValra's custom 3D avatar renderer on profile pages. Applies when a profile loads.",
                 "rendererForced": "Disabled while Performance Mode is enabled."
