@@ -58,6 +58,8 @@ export async function renderPerformance(container) {
 
     let animationsToggle = null;
     let animationsHint = null;
+    let rendererToggle = null;
+    let rendererHint = null;
 
     const syncAnimationsRow = (nextState) => {
         if (
@@ -76,6 +78,37 @@ export async function renderPerformance(container) {
         }
     };
 
+    const syncRendererRow = async () => {
+        let rendererEnabled = false;
+        try {
+            const stored = await chrome.storage.local.get({
+                profile3DRenderEnabled: false,
+            });
+            rendererEnabled = stored.profile3DRenderEnabled === true;
+        } catch (error) {
+            console.warn(
+                'RoValra: Failed to read the 3D renderer setting',
+                error,
+            );
+        }
+        const masterOn =
+            (await getPerformanceState()).performanceMode === true;
+        if (rendererToggle && typeof rendererToggle.setChecked === 'function') {
+            rendererToggle.setChecked(rendererEnabled && !masterOn);
+            rendererToggle.disabled = masterOn;
+            rendererToggle.title = masterOn ? ui('rendererForced') : '';
+        }
+        if (rendererHint) {
+            rendererHint.hidden = !masterOn;
+        }
+    };
+
+    const syncAllRows = async () => {
+        const nextState = await getPerformanceState();
+        syncAnimationsRow(nextState);
+        await syncRendererRow();
+    };
+
     const master = createOptionRow({
         titleText: ui('masterTitle'),
         descriptionText: ui('masterDescription'),
@@ -86,7 +119,7 @@ export async function renderPerformance(container) {
                 await chrome.storage.local.set({
                     [PERFORMANCE_STORAGE_KEYS.performanceMode]: newState,
                 });
-                syncAnimationsRow(await getPerformanceState());
+                await syncAllRows();
             } catch (error) {
                 console.warn(
                     'RoValra: Failed to save the performance mode setting',
@@ -135,5 +168,39 @@ export async function renderPerformance(container) {
 
     syncAnimationsRow(state);
     card.appendChild(animations.row);
+
+    const renderer = createOptionRow({
+        titleText: ui('rendererTitle'),
+        descriptionText: ui('rendererDescription'),
+        checked: false,
+        onChange: async (newState) => {
+            renderer.toggle.disabled = true;
+            try {
+                await chrome.storage.local.set({
+                    profile3DRenderEnabled: newState,
+                });
+            } catch (error) {
+                console.warn(
+                    'RoValra: Failed to save the 3D renderer setting',
+                    error,
+                );
+                if (typeof renderer.toggle.setChecked === 'function') {
+                    renderer.toggle.setChecked(!newState);
+                }
+            } finally {
+                await syncRendererRow();
+            }
+        },
+    });
+    rendererToggle = renderer.toggle;
+
+    rendererHint = document.createElement('div');
+    rendererHint.className = 'rovalra-perf-hint';
+    rendererHint.textContent = ui('rendererForced');
+    rendererHint.hidden = true;
+    renderer.description.after(rendererHint);
+
+    card.appendChild(renderer.row);
+    await syncRendererRow();
     container.appendChild(card);
 }

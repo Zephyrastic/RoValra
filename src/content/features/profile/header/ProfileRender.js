@@ -2424,7 +2424,7 @@ export function init() {
     }
 
     chrome.storage.local.get(
-        { profile3DRenderEnabled: true, profile3DRenderForceDisabled: false, profile3DRenderPostProcessing: false },
+        { profile3DRenderEnabled: true, profile3DRenderForceDisabled: false, profile3DRenderPostProcessing: false, performanceModeEnabled: false },
         (result) => {
             if (activeProfileRenderUserId !== String(userId)) return;
 
@@ -2441,7 +2441,8 @@ export function init() {
 
             if (result.profile3DRenderPostProcessing) FLAGS.USE_POST_PROCESSING = true;
 
-            if (result.profile3DRenderEnabled) {
+            // Performance Mode also disables the 3D renderer.
+            if (result.profile3DRenderEnabled && !result.performanceModeEnabled) {
                 setupProfileRenderObservers();
                 refreshProfileRenderDomForCurrentUser();
             } else {
