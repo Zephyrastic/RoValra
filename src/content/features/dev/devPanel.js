@@ -156,10 +156,13 @@ function createCopyAllButton() {
         onClick: async () => {
             const values = [
                 ...document.querySelectorAll(
-                    '.rovalra-devpanel-id-section .rovalra-devpanel-value',
+                    '.rovalra-devpanel-id-section .rovalra-devpanel-row',
                 ),
             ]
-                .map((value) => value.textContent.trim())
+                .filter((row) => row.querySelector('.rovalra-devpanel-copy'))
+                .map((row) =>
+                    row.querySelector('.rovalra-devpanel-value')?.textContent.trim(),
+                )
                 .filter(Boolean);
 
             if (values.length === 0) {
