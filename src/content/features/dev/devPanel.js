@@ -429,16 +429,44 @@ function prepareLinkIcon(link) {
     return iconHost;
 }
 
+function findGiftCardsLink(nav) {
+    return [...nav.querySelectorAll('a[href]')].find((link) => {
+        if (link.closest(`[${PANEL_ITEM_ATTR}]`)) return false;
+
+        const label = link.textContent.replace(/\s+/g, ' ').trim().toLowerCase();
+        if (label === 'buy gift cards') return true;
+
+        try {
+            const path = new URL(link.href, window.location.origin).pathname;
+            return /\/gift-?cards\/?$/i.test(path);
+        } catch {
+            return false;
+        }
+    });
+}
+
 function appendPanelItem(nav) {
     const region =
         nav.closest('#left-navigation-container, #navigation, .navigation') ||
         nav;
-    if (cleanupPanelItems(region)) return;
+    const giftCardsLink = findGiftCardsLink(nav);
+    const existingItem = cleanupPanelItems(region);
 
-    const templateLink = [...nav.querySelectorAll('a[href]')].find(
-        (link) =>
-            !link.closest(`[${PANEL_ITEM_ATTR}]`) && link.textContent.trim(),
-    );
+    if (existingItem) {
+        const sidebar = giftCardsLink && getSidebarContainer(giftCardsLink);
+        const giftCardsItem =
+            sidebar && getSidebarItem(sidebar, giftCardsLink);
+        if (giftCardsItem) {
+            giftCardsItem.insertAdjacentElement('afterend', existingItem);
+        }
+        return;
+    }
+
+    const templateLink = giftCardsLink ||
+        [...nav.querySelectorAll('a[href]')].find(
+            (link) =>
+                !link.closest(`[${PANEL_ITEM_ATTR}]`) && link.textContent.trim(),
+        );
     if (!templateLink) return;
 
     const sidebar = getSidebarContainer(templateLink);
@@ -475,6 +503,16 @@ function appendPanelItem(nav) {
         event.preventDefault();
         openDevPanel();
     });
+
+    if (giftCardsLink) {
+        const giftCardsSidebar = getSidebarContainer(giftCardsLink);
+        const giftCardsItem =
+            giftCardsSidebar && getSidebarItem(giftCardsSidebar, giftCardsLink);
+        if (giftCardsItem) {
+            giftCardsItem.insertAdjacentElement('afterend', item);
+            return;
+        }
+    }
 
     const insertionParent = templateItem.parentElement || nav;
     insertionParent.appendChild(item);
