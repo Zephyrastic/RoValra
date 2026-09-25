@@ -5,6 +5,26 @@
     min-width: 0;
 }
 
+.rovalra-devpanel-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 4px;
+}
+
+.rovalra-devpanel-section + .rovalra-devpanel-section {
+    padding-top: 12px;
+    border-top: 1px solid var(--rovalra-divider-color, rgba(0, 0, 0, 0.1));
+}
+
+.rovalra-devpanel-section-title {
+    margin: 0;
+    color: var(--rovalra-main-text-color);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+
 .rovalra-devpanel-row {
     display: flex;
     align-items: center;

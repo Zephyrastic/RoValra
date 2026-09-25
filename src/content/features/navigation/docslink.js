@@ -95,13 +95,11 @@ function getSidebarContainer(anchor) {
 }
 
 function getSidebarItem(sidebar, link) {
-    let current = link;
-
-    while (current?.parentElement && current.parentElement !== sidebar) {
-        current = current.parentElement;
-    }
-
-    return current?.parentElement === sidebar ? current : link.parentElement;
+    const item = link.closest(
+        'li, [role="menuitem"], [role="listitem"], .roseal-left-nav-item',
+    );
+    if (!item || item === sidebar || !sidebar.contains(item)) return null;
+    return item;
 }
 
 function stripClonedState(item) {
