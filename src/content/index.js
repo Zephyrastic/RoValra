@@ -166,8 +166,6 @@ import { init as initUnfriendDetector } from './features/profile/friends/unfrien
 import { init as initBulkBadgeRemover } from './features/profile/badges/bulkRemover.js';
 import { init as initProfileBackground } from './features/profile/header/profileBackground.js';
 import { init as initAvatarDownload } from './features/profile/header/avatarDownload.js';
-import { init as initAvatarBorder } from './features/profile/avatarBorder.js';
-import { init as initProfileFrame } from './features/profile/profileFrame.js';
 import { init as initImprovedAvatarCard } from './features/profile/improvedAvatarCard.js';
 import { init as initRobuxIcons } from './core/ui/robuxIcon.js';
 import { init as initMoreRobuxDigits } from './features/sitewide/moreRobuxDigits.js';
@@ -177,7 +175,6 @@ import { init as initGroupFilters } from './features/profile/groupFilters.js';
 import { init as initUsernameColor } from './features/profile/header/usernameColor.js';
 import { init as initDisplayNameGradient } from './features/profile/header/displayNameGradient.js';
 import { init as initChatEligibilityTooltip } from './features/profile/header/chatEligibilityTooltip.js';
-import { init as initProfileCustomization } from './features/profile/profileCustomization.js';
 import { init as initProfileEditFeatures } from './core/profile/profileEdit.js';
 import './features/profile/profileBadges.js';
 import { init as initSocialLinks } from './features/profile/socialLinks.js';
@@ -262,7 +259,6 @@ const featureRoutes = [
             initRobuxIcons,
             initMoreRobuxDigits,
             initProfileBackground,
-            initAvatarBorder,
             initDisplayNameGradient,
             initPurchasePromptItemId,
             initCurrentlyPlayingSubplace,
@@ -420,7 +416,6 @@ const featureRoutes = [
         features: [
             initDonationLink,
             initImprovedAvatarCard,
-            initProfileFrame,
             initRap,
             initInstantJoiner,
             initOutfits,
@@ -446,7 +441,6 @@ const featureRoutes = [
             initGroupFilters,
             initAvatarDownload,
             initChatEligibilityTooltip,
-            initProfileCustomization,
             initSocialLinks,
             initSendRobuxProfileButton,
             initProfileAppThemesOnProfiles,

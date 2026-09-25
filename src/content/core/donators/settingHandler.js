@@ -17,7 +17,6 @@ import {
 } from '../configs/userIds.js';
 import * as cache from '../storage/cacheHandler.js';
 import { normalizeProfilePronouns } from '../profile/pronouns.js';
-import { findFrameByLink, getFrames } from '../configs/frames.js';
 
 const GRADIENT_NAME_API_KEY = 'GradientName';
 
@@ -41,17 +40,6 @@ function extractProfilePronouns(apiSettings) {
         apiSettings?.user_tag ??
         apiSettings?.userTag;
     return normalizeProfilePronouns(value);
-}
-
-async function normalizeBertLink(value) {
-    const candidate =
-        value && typeof value === 'object'
-            ? value.link ?? value.value
-            : value;
-    if (!candidate || candidate === 'none') return null;
-
-    const frames = await getFrames().catch(() => []);
-    return findFrameByLink(frames, candidate)?.link || String(candidate);
 }
 
 const BATCH_MAX_SIZE = 50;
@@ -143,8 +131,6 @@ async function fetchAndProcessSettings(userId, options = {}) {
                 (apiSettings.environment === 0 ||
                     apiSettings.environment === 1) &&
                 !apiSettings.status &&
-                !apiSettings.border &&
-                !apiSettings.berts &&
                 !apiSettings.gradient &&
                 !apiSettings[GRADIENT_NAME_API_KEY] &&
                 !apiSettings.GradientName &&
@@ -170,16 +156,12 @@ async function fetchAndProcessSettings(userId, options = {}) {
     let finalStatus = null;
     let finalEnvironment = 1;
     let finalGradient = null;
-    let finalBorder = null;
-    let finalFrame = null;
     let finalGradientName = null;
 
     if (apiProvidedMeaningfulSettings) {
         finalStatus = apiSettings.status;
         finalEnvironment = apiSettings.environment;
         finalGradient = apiSettings.gradient;
-        finalBorder = apiSettings.border ?? null;
-        finalFrame = await normalizeBertLink(apiSettings.berts);
         finalGradientName =
             apiSettings[GRADIENT_NAME_API_KEY] ??
             apiSettings.GradientName ??
@@ -187,39 +169,11 @@ async function fetchAndProcessSettings(userId, options = {}) {
             null;
     }
 
-    if (
-        isOwnProfile &&
-        apiSettings &&
-        apiSettings.border &&
-        apiProvidedMeaningfulSettings
-    ) {
-        document.dispatchEvent(
-            new CustomEvent('rovalra:syncAvatarBorder', {
-                detail: { borderUrl: apiSettings.border },
-            }),
-        );
-    }
-
-    if (
-        isOwnProfile &&
-        apiSettings &&
-        apiSettings.berts &&
-        apiProvidedMeaningfulSettings
-    ) {
-        document.dispatchEvent(
-            new CustomEvent('rovalra:syncProfileFrame', {
-                detail: { frameUrl: finalFrame },
-            }),
-        );
-    }
-
     return {
         status: finalStatus,
         environment: finalEnvironment || 1,
         gradient: finalGradient,
         GradientName: finalGradientName,
-        border: finalBorder,
-        berts: finalFrame,
         pronouns: extractProfilePronouns(apiSettings),
         Views: Number(apiSettings.Views) || 0,
         hide_views:
@@ -264,9 +218,9 @@ async function processBatchQueue() {
         const userIdsToFetchStrings = userIdsToFetch.map((id) => String(id));
 
         if (userIdsToFetch.length > 0) {
-            // VALRA EDIT HERE: /v1/users/settings?user_ids=... GET should return
-            // `border` in each user's settings object alongside status, environment
-            // and gradient, so other users' borders can be displayed.
+            // VALRA EDIT HERE: /v1/users/settings?user_ids=... GET returns each
+            // user's settings object alongside status, environment
+            // and gradient.
             const data = await callRobloxApiJson({
                 isRovalraApi: true,
                 subdomain: 'apis',
@@ -366,18 +320,12 @@ async function processBatchQueue() {
 async function processApiSettings(userId, apiSettings, options) {
     assertValidUserId(userId);
 
-    const authenticatedUserId = await getAuthenticatedUserId();
-    const isOwnProfile =
-        authenticatedUserId && String(authenticatedUserId) === String(userId);
-
     let apiProvidedMeaningfulSettings = false;
 
     if (apiSettings && typeof apiSettings === 'object') {
         if (
             (apiSettings.environment === 0 || apiSettings.environment === 1) &&
             !apiSettings.status &&
-            !apiSettings.border &&
-            !apiSettings.berts &&
             !apiSettings.gradient &&
             !apiSettings[GRADIENT_NAME_API_KEY] &&
             !apiSettings.GradientName &&
@@ -399,17 +347,12 @@ async function processApiSettings(userId, apiSettings, options) {
     let finalStatus = null;
     let finalEnvironment = 1;
     let finalGradient = null;
-    let finalBorder = null;
-    let finalFrame = null;
     let finalGradientName = null;
 
     if (apiProvidedMeaningfulSettings) {
         finalStatus = apiSettings.status;
         finalEnvironment = apiSettings.environment;
         finalGradient = apiSettings.gradient;
-        finalBorder = apiSettings.border ?? null;
-
-        finalFrame = await normalizeBertLink(apiSettings.berts);
         finalGradientName =
             apiSettings[GRADIENT_NAME_API_KEY] ??
             apiSettings.GradientName ??
@@ -417,39 +360,11 @@ async function processApiSettings(userId, apiSettings, options) {
             null;
     }
 
-    if (
-        isOwnProfile &&
-        apiSettings &&
-        apiSettings.border &&
-        apiProvidedMeaningfulSettings
-    ) {
-        document.dispatchEvent(
-            new CustomEvent('rovalra:syncAvatarBorder', {
-                detail: { borderUrl: apiSettings.border },
-            }),
-        );
-    }
-
-    if (
-        isOwnProfile &&
-        apiSettings &&
-        apiSettings.berts &&
-        apiProvidedMeaningfulSettings
-    ) {
-        document.dispatchEvent(
-            new CustomEvent('rovalra:syncProfileFrame', {
-                detail: { frameUrl: finalFrame },
-            }),
-        );
-    }
-
     return {
         status: finalStatus,
         environment: finalEnvironment || 1,
         gradient: finalGradient,
         GradientName: finalGradientName,
-        border: finalBorder,
-        berts: finalFrame,
         pronouns: extractProfilePronouns(apiSettings),
         Views: Number(apiSettings.Views) || 0,
         hide_views:

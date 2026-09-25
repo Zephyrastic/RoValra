@@ -8,8 +8,6 @@ const ACCOUNT_STANDING_TAB_IDS = new Set([
     'info',
     'credits',
     'donatorPerks',
-    'store',
-    'changelogs',
     'whatsNew',
     'privateServers',
 ]);

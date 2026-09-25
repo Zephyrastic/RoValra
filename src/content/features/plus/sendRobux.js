@@ -20,7 +20,6 @@ import { observeElement, observeChildren, startObserving } from '../../core/obse
 import { fetchFriendsCustom, fetchFriendsOnlineStatus } from '../../core/utils/trackers/friendslist.js';
 import { getUserSettings } from '../../core/donators/settingHandler.js';
 import { applyDisplayNameGradientToElement } from '../profile/header/displayNameGradient.js';
-import { applyBorderToContainer } from '../profile/avatarBorder.js';
 import { applyGradientForUserId } from '../profile/header/profileBackground.js';
 import { CUSTOM_ADDED_TAGS } from '../../core/utils/purifyCfg.js';
 
@@ -666,8 +665,7 @@ export function initBuyRobuxPage() {
     chrome.storage.local.get({
         sendRobuxEnabled: true,
         profileBackgroundGradientEnabled: true,
-        displayNameGradientEnabled: true,
-        avatarBorderEnabled: true
+        displayNameGradientEnabled: true
     }, (settings) => {
         if (!settings.sendRobuxEnabled) return;
 
@@ -729,8 +727,6 @@ export function initBuyRobuxPage() {
 
                 if (settings.displayNameGradientEnabled)
                     applyDisplayNameGradientToElement(newEl.querySelector('span.inline-flex.items-center.gap-xxsmall.text-body-medium.content-emphasis > span'), profileUserSettings, { hoverHost: newEl });
-                if (settings.avatarBorderEnabled)
-                    applyBorderToContainer(newEl.querySelector('div.radius-circle.overflow-hidden'), profileUserSettings.border, true);
                 if (settings.profileBackgroundGradientEnabled)
                     applyGradientForUserId(newEl.id.replace('user-', ''), newEl.querySelector('div.radius-circle.overflow-hidden'), true);
 
@@ -796,8 +792,6 @@ export function initBuyRobuxPage() {
 
                 if (settings.displayNameGradientEnabled)
                     applyDisplayNameGradientToElement(profileDiv.querySelector('.text-body-medium.content-emphasis'), profileUserSettings, { hoverHost: profileDiv });
-                if (settings.avatarBorderEnabled)
-                    applyBorderToContainer(profileDiv.querySelector('div.radius-circle.overflow-hidden'), profileUserSettings.border, true);
                 if (settings.profileBackgroundGradientEnabled)
                     applyGradientForUserId(profile.userId, profileDiv.querySelector('div.radius-circle.overflow-hidden'), true);
 
@@ -839,8 +833,6 @@ export function initBuyRobuxPage() {
 
             if (settings.displayNameGradientEnabled)
                 applyDisplayNameGradientToElement(newEl.querySelector('div.flex.flex-row.items-center.gap-small > div.flex.flex-col > span.text-label-medium.content-emphasis'), profileUserSettings, { hoverHost: newEl });
-            if (settings.avatarBorderEnabled)
-                applyBorderToContainer(newEl.querySelector('div.height-800.width-800.radius-circle.clip.flex.items-center.justify-center.shrink-0.bg-surface-200:has(img.height-full.width-full.object-cover)'), profileUserSettings.border, true);
             if (settings.profileBackgroundGradientEnabled)
                 applyGradientForUserId(transferData.sender.id, newEl.querySelector('div.height-800.width-800.radius-circle.clip.flex.items-center.justify-center.shrink-0.bg-surface-200:has(img.height-full.width-full.object-cover)'), true);
 

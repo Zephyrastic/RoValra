@@ -11,7 +11,6 @@ import { setUnfriendDetectedListener } from '../../../core/utils/trackers/unfrie
 import { callRobloxApiJson } from '../../../core/api';
 import { getUserSettings } from '../../../core/donators/settingHandler.js';
 import { applyDisplayNameGradientToElement } from '../header/displayNameGradient.js';
-import { applyBorderToContainer } from '../avatarBorder.js';
 
 const PENDING_UNFRIENDS_KEY = 'rovalra_pending_unfriends';
 
@@ -137,10 +136,7 @@ async function showUnfriendDetectedOverlay(unfriendedUsers) {
         console.error('RoValra: Failed to fetch unfriend detector thumbnails', error);
     }
 
-    const [gradientEnabled, borderEnabled] = await Promise.all([
-        settings.displayNameGradientEnabled,
-        settings.avatarBorderEnabled,
-    ]);
+    const gradientEnabled = await settings.displayNameGradientEnabled;
 
     const cosmeticTargets = [];
 
@@ -245,48 +241,22 @@ async function showUnfriendDetectedOverlay(unfriendedUsers) {
 
     dismissButton.addEventListener('click', () => overlay.close());
 
-    if (gradientEnabled || borderEnabled) {
-        for (const { user, item, thumbHolder, nameText } of cosmeticTargets) {
-            if (borderEnabled && thumbHolder) {
-                getUserSettings(user.id)
-                    .then((userSettings) => {
-                        const borderUrl =
-                            userSettings?.border &&
-                            userSettings.border !== 'none'
-                                ? userSettings.border
-                                : null;
-                        if (borderUrl) {
-                            applyBorderToContainer(
-                                thumbHolder,
-                                borderUrl,
-                                true,
-                            );
-                        }
-                    })
-                    .catch((error) => {
-                        console.error(
-                            'RoValra: Failed to resolve avatar border for unfriend detector',
-                            error,
-                        );
-                    });
-            }
-
-            if (gradientEnabled) {
-                getUserSettings(user.id, { useDescription: false })
-                    .then((userSettings) => {
-                        applyDisplayNameGradientToElement(
-                            nameText,
-                            userSettings,
-                            { animate: true, hoverHost: item },
-                        );
-                    })
-                    .catch((error) => {
-                        console.error(
-                            'RoValra: Failed to resolve display name gradient for unfriend detector',
-                            error,
-                        );
-                    });
-            }
+    if (gradientEnabled) {
+        for (const { user, item, nameText } of cosmeticTargets) {
+            getUserSettings(user.id, { useDescription: false })
+                .then((userSettings) => {
+                    applyDisplayNameGradientToElement(
+                        nameText,
+                        userSettings,
+                        { animate: true, hoverHost: item },
+                    );
+                })
+                .catch((error) => {
+                    console.error(
+                        'RoValra: Failed to resolve display name gradient for unfriend detector',
+                        error,
+                    );
+                });
         }
     }
 }

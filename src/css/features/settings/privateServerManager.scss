@@ -86,7 +86,7 @@ body.rovalra-settings-page {
         max-width: 320px;
     }
 
-    .rovalra-psm-label-input {
+    .rovalra-psm-rename-input {
         width: 100%;
         max-width: 320px;
         padding: 4px 8px;
@@ -101,6 +101,32 @@ body.rovalra-settings-page {
             outline: none;
             border-color: var(--rovalra-secondary-text-color);
         }
+
+        &:disabled {
+            opacity: 0.6;
+        }
+    }
+
+    .rovalra-psm-row-error {
+        font-size: 12px;
+        color: #f23f43;
+    }
+
+    .rovalra-psm-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        flex-shrink: 0;
+        align-items: stretch;
+    }
+
+    .rovalra-psm-toggle-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--rovalra-secondary-text-color);
     }
 
     .rovalra-psm-pill {
@@ -131,11 +157,6 @@ body.rovalra-settings-page {
     .rovalra-psm-pill-neutral {
         background-color: rgba(128, 128, 128, 0.18);
         color: var(--rovalra-secondary-text-color);
-    }
-
-    .rovalra-psm-allow-button.rovalra-psm-allow-done {
-        border-color: rgba(35, 165, 90, 0.55);
-        color: #23a55a;
     }
 
     .rovalra-psm-progress {

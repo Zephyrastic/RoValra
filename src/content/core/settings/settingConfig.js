@@ -866,14 +866,6 @@ export const SETTINGS_CONFIG = {
                 type: 'checkbox',
                 default: false,
             },
-            profileCustomizationEnabled: {
-                label: 'Profile Customization',
-                description: [
-                    'Adds a customization button to your own profile for quickly switching avatar borders.',
-                ],
-                type: 'checkbox',
-                default: true,
-            },
             profileShowcaseEnabled: {
                 label: 'Profile Showcase',
                 description: [
@@ -1267,55 +1259,6 @@ export const SETTINGS_CONFIG = {
                         type: 'checkbox',
                         default: false,
                         requiredPermissions: ['webRequest'],
-                    },
-                },
-            },
-            avatarBorderEnabled: {
-                label: "Shows a user's Avatar Border",
-                description: [
-                    'Shows a decorative border around avatars on friend tiles and profile pages.',
-                    "**Your selected border is saved to RoValra's database so other RoValra users can see it.**",
-                ],
-                type: 'checkbox',
-                default: true,
-                contributors: [48255812],
-                childSettings: {
-                    avatarBorderChoice: {
-                        label: 'Get all Avatar borders for free',
-                        description: [
-                            'Allows you to use any avatar border completely free of charge.',
-                        ],
-                        type: 'button',
-                        buttonText: 'Open Border Store',
-                        event: 'rovalra:openBorderStore',
-                        avatarPreview: true,
-                        donatorTier: 3,
-                        donatorReason:
-                            'Donator Tier 3 gets all avatar borders for free.',
-                        default: 'none',
-                    },
-                },
-            },
-            profileFrameEnabled: {
-                label: "Shows a user's Profile Frame",
-                description: [
-                    'Draws a frame around the avatar display on profile pages.',
-                    'Frames are separate from avatar borders, they wrap the whole avatar thumbnail holder instead of the avatar tile.',
-                    "**Your selected frame is saved to RoValra's database so other RoValra users can see it.**",
-                ],
-                type: 'checkbox',
-                default: true,
-                contributors: [48255812],
-                childSettings: {
-                    profileFrameChoice: {
-                        label: 'Profile Frames',
-                        description: [
-                            'Pick a profile frame from the Frames tab of the RoValra store.',
-                        ],
-                        type: 'button',
-                        buttonText: 'Open Frame Store',
-                        event: 'rovalra:openFrameStore',
-                        default: 'none',
                     },
                 },
             },

@@ -3,6 +3,7 @@ import { ts } from '../../core/locale/i18n.js';
 import { fetchThumbnails } from '../../core/thumbnail/thumbnails.js';
 import { createOverlay } from '../../core/ui/overlay.js';
 import { createButton } from '../../core/ui/buttons.js';
+import { createToggle } from '../../core/ui/general/toggle.js';
 import { createSpinner } from '../../core/ui/spinner.js';
 import { showConfirmationPrompt } from '../../core/ui/confirmationPrompt.js';
 
@@ -10,11 +11,15 @@ const ui = (key, options) => ts(`settings.ui.privateServers.${key}`, options);
 
 const LIST_ENDPOINT =
     '/v1/private-servers/my-private-servers?itemsPerPage=100&privateServersTab=MyPrivateServers';
-// Local-only labels (never sent to Roblox): { [privateServerId]: string }.
-const LABELS_STORAGE_KEY = 'vipServerLabels';
-const LABEL_MAX_LENGTH = 60;
+// Persisted caches so the manager renders instantly and stays in sync:
+// the server list plus per-server details (friends-allowed state, join link).
+const SERVERS_CACHE_KEY = 'privateServersCache';
+const DETAILS_CACHE_KEY = 'privateServerDetailsCache';
+const RENAME_MAX_LENGTH = 50;
 const EXPIRY_WARNING_DAYS = 7;
 const BULK_REQUEST_DELAY_MS = 500;
+const DETAILS_CONCURRENCY = 6;
+const COPY_FEEDBACK_MS = 1500;
 
 async function fetchAllServers() {
     const allServers = [];
@@ -44,44 +49,123 @@ async function fetchAllServers() {
     return allServers;
 }
 
-async function getLabels() {
-    const stored = await chrome.storage.local.get(LABELS_STORAGE_KEY);
-    const labels = stored[LABELS_STORAGE_KEY];
-    return labels && typeof labels === 'object' && !Array.isArray(labels)
-        ? labels
-        : {};
-}
-
-async function saveLabel(serverId, rawValue) {
-    const labels = await getLabels();
-    const value = String(rawValue || '')
-        .trim()
-        .slice(0, LABEL_MAX_LENGTH);
-    if (value) {
-        labels[serverId] = value;
-    } else {
-        delete labels[serverId];
+async function fetchServerDetails(privateServerId) {
+    const response = await callRobloxApi({
+        subdomain: 'games',
+        endpoint: `/v1/vip-servers/${privateServerId}`,
+        method: 'GET',
+        noCache: true,
+    });
+    if (!response.ok) {
+        throw new Error(`Private server details failed: ${response.status}`);
     }
-    await chrome.storage.local.set({ [LABELS_STORAGE_KEY]: labels });
+    return response.json();
 }
 
-async function patchFriendsAllowed(privateServerId) {
+async function getServersCache() {
+    try {
+        const stored = await chrome.storage.local.get(SERVERS_CACHE_KEY);
+        const cached = stored[SERVERS_CACHE_KEY];
+        if (cached && Array.isArray(cached.servers)) return cached;
+    } catch (error) {
+        console.warn('RoValra: Failed to read the private server cache', error);
+    }
+    return null;
+}
+
+async function setServersCache(servers) {
+    try {
+        await chrome.storage.local.set({
+            [SERVERS_CACHE_KEY]: { savedAt: Date.now(), servers },
+        });
+    } catch (error) {
+        console.warn('RoValra: Failed to write the private server cache', error);
+    }
+}
+
+async function updateCachedServerName(serverId, name) {
+    try {
+        const cached = await getServersCache();
+        if (!cached) return;
+        const servers = cached.servers.map((server) =>
+            String(server.privateServerId) === String(serverId)
+                ? { ...server, name }
+                : server,
+        );
+        await setServersCache(servers);
+    } catch (error) {
+        console.warn('RoValra: Failed to update the private server cache', error);
+    }
+}
+
+async function getDetailsCache() {
+    try {
+        const stored = await chrome.storage.local.get(DETAILS_CACHE_KEY);
+        const cached = stored[DETAILS_CACHE_KEY];
+        if (cached && typeof cached === 'object' && !Array.isArray(cached)) {
+            return cached;
+        }
+    } catch (error) {
+        console.warn(
+            'RoValra: Failed to read the private server details cache',
+            error,
+        );
+    }
+    return {};
+}
+
+async function setDetailsCache(detailsById) {
+    try {
+        await chrome.storage.local.set({
+            [DETAILS_CACHE_KEY]: { ...detailsById },
+        });
+    } catch (error) {
+        console.warn(
+            'RoValra: Failed to write the private server details cache',
+            error,
+        );
+    }
+}
+
+function extractApiErrorMessage(data, fallback) {
+    const apiMessage = data?.errors?.[0]?.message;
+    return apiMessage ? String(apiMessage) : fallback;
+}
+
+async function patchFriendsAllowed(privateServerId, allowed) {
     return callRobloxApi({
         subdomain: 'games',
         endpoint: `/v1/vip-servers/${privateServerId}/permissions`,
         method: 'PATCH',
-        body: { friendsAllowed: true },
+        body: { friendsAllowed: allowed },
     });
+}
+
+async function patchServerName(privateServerId, name) {
+    const response = await callRobloxApi({
+        subdomain: 'games',
+        endpoint: `/v1/vip-servers/${privateServerId}`,
+        method: 'PATCH',
+        body: { name },
+    });
+    if (!response.ok) {
+        let reason = `HTTP ${response.status}`;
+        try {
+            reason = extractApiErrorMessage(await response.json(), reason);
+        } catch {
+            // Keep the generic message when the body isn't JSON.
+        }
+        throw new Error(reason);
+    }
 }
 
 function markRowAllowed(list, serverId) {
     const row = list.querySelector(`[data-server-id="${String(serverId)}"]`);
     if (!row) return;
-    const rowButton = row.querySelector('.rovalra-psm-allow-button');
-    if (!rowButton) return;
-    rowButton.textContent = ui('allowDone');
-    rowButton.classList.add('rovalra-psm-allow-done');
-    rowButton.disabled = true;
+    const toggle = row.querySelector('.rovalra-psm-friends-toggle');
+    if (!toggle || typeof toggle.setChecked !== 'function') return;
+    toggle.setChecked(true);
+    toggle.disabled = false;
 }
 
 function createExpiryPill(server) {
@@ -107,8 +191,12 @@ function createExpiryPill(server) {
             text = ui('expiresSoon', { days: daysLeft });
             tone = 'warning';
         } else {
+            // Rendered via textContent (not HTML), so i18next's default
+            // HTML-escaping of interpolated values must be off — otherwise
+            // dates like 3/25/2125 display as 3&#x2F;25&#x2F;2125.
             text = ui('expiresOn', {
                 date: expiration.toLocaleDateString(),
+                interpolation: { escapeValue: false },
             });
             tone = 'ok';
         }
@@ -120,7 +208,7 @@ function createExpiryPill(server) {
     return pill;
 }
 
-async function runBulkAllow(servers, list) {
+async function runBulkAllow(servers, list, onAllowed) {
     let isCancelled = false;
 
     const bodyContent = document.createElement('div');
@@ -167,16 +255,19 @@ async function runBulkAllow(servers, list) {
         });
 
         try {
-            const response = await patchFriendsAllowed(server.privateServerId);
+            const response = await patchFriendsAllowed(
+                server.privateServerId,
+                true,
+            );
             if (response.ok) {
                 successCount += 1;
                 markRowAllowed(list, server.privateServerId);
+                if (onAllowed) onAllowed(server.privateServerId, true);
             } else {
                 let reason = ui('requestFailed');
                 try {
                     const errorData = await response.json();
-                    const apiMessage = errorData?.errors?.[0]?.message;
-                    if (apiMessage) reason = String(apiMessage);
+                    reason = extractApiErrorMessage(errorData, reason);
                 } catch {
                     // Keep the generic message when the body isn't JSON.
                 }
@@ -237,70 +328,154 @@ function appendStatus(container, text) {
 
 export async function renderPrivateServerManager(container) {
     container.innerHTML = '';
-    appendStatus(container, ui('loading'));
 
-    let servers;
-    let labels;
+    let servers = [];
+    const detailsById = new Map();
     let thumbnailMap = new Map();
+    let searchInput = null;
+    let list = null;
+    const rowControls = new Map();
+    let isRefreshing = false;
 
-    try {
-        [servers, labels] = await Promise.all([
-            fetchAllServers(),
-            getLabels(),
-        ]);
-        if (servers.length) {
-            thumbnailMap = await fetchThumbnails(
-                servers.map((server) => ({ id: server.universeId })),
-                'GameIcon',
-                '150x150',
-            );
+    function getDetails(serverId) {
+        return detailsById.get(String(serverId)) || null;
+    }
+
+    function rememberDetails(serverId, details) {
+        if (details) detailsById.set(String(serverId), details);
+    }
+
+    async function persistDetails() {
+        const merged = await getDetailsCache();
+        for (const [serverId, details] of detailsById) {
+            merged[serverId] = details;
         }
-    } catch (error) {
-        console.warn('RoValra: Failed to load private servers', error);
-        container.innerHTML = '';
-        appendStatus(container, ui('loadFailed'));
-        return;
+        await setDetailsCache(merged);
     }
 
-    container.innerHTML = '';
-    if (!servers.length) {
-        appendStatus(container, ui('empty'));
-        return;
+    function applyDetailsToRow(serverId, details) {
+        const controls = rowControls.get(String(serverId));
+        if (!controls) return;
+        const friendsAllowed =
+            details?.permissions?.friendsAllowed === true;
+        if (
+            controls.toggle &&
+            typeof controls.toggle.setChecked === 'function'
+        ) {
+            controls.toggle.setChecked(friendsAllowed);
+            controls.toggle.disabled = false;
+        }
+        if (controls.copyButton) {
+            controls.copyButton.disabled = !details?.link;
+        }
     }
 
-    const toolbar = document.createElement('div');
-    toolbar.className = 'rovalra-psm-toolbar';
-
-    const searchInput = document.createElement('input');
-    searchInput.type = 'search';
-    searchInput.className = 'rovalra-psm-search';
-    searchInput.placeholder = ui('searchPlaceholder');
-    searchInput.setAttribute('aria-label', ui('searchPlaceholder'));
-
-    const bulkButton = createButton(ui('bulkButton'), 'primary', {
-        onClick: () => {
-            showConfirmationPrompt({
-                title: ui('bulkAllowTitle'),
-                message: ui('bulkAllowMessage', { count: servers.length }),
-                confirmText: ui('bulkAllowConfirm'),
-                confirmType: 'primary',
-                onConfirm: () => {
-                    runBulkAllow(servers, list);
+    async function handleToggle(serverId, newState, toggle) {
+        toggle.disabled = true;
+        try {
+            const response = await patchFriendsAllowed(serverId, newState);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            const previous = getDetails(serverId) || {};
+            rememberDetails(serverId, {
+                ...previous,
+                permissions: {
+                    ...(previous.permissions || {}),
+                    friendsAllowed: newState,
                 },
             });
-        },
-    });
+            await persistDetails();
+        } catch (error) {
+            console.error(
+                'RoValra: Failed to toggle friends allowed on a private server',
+                error,
+            );
+            if (typeof toggle.setChecked === 'function') {
+                toggle.setChecked(!newState);
+            }
+        } finally {
+            toggle.disabled = false;
+        }
+    }
 
-    toolbar.append(searchInput, bulkButton);
+    async function handleRename(server, nameSpan, renameInput, errorBox) {
+        const serverId = server.privateServerId;
+        const newName = String(renameInput.value || '')
+            .trim()
+            .slice(0, RENAME_MAX_LENGTH);
+        if (!newName || newName === server.name) {
+            renameInput.value = server.name || '';
+            return;
+        }
+        renameInput.disabled = true;
+        errorBox.hidden = true;
+        try {
+            await patchServerName(serverId, newName);
+            server.name = newName;
+            nameSpan.textContent = newName;
+            nameSpan.title = newName;
+            renameInput.value = newName;
+            await updateCachedServerName(serverId, newName);
+        } catch (error) {
+            console.error('RoValra: Failed to rename a private server', error);
+            renameInput.value = server.name || '';
+            errorBox.textContent = ui('renameFailed', {
+                error: error?.message || ui('requestFailed'),
+                interpolation: { escapeValue: false },
+            });
+            errorBox.hidden = false;
+        } finally {
+            renameInput.disabled = false;
+        }
+    }
 
-    const list = document.createElement('div');
-    list.className = 'rovalra-psm-list';
-    container.append(toolbar, list);
+    function flashButtonText(button, text) {
+        const originalText = button.textContent;
+        button.textContent = text;
+        setTimeout(() => {
+            button.textContent = originalText;
+        }, COPY_FEEDBACK_MS);
+    }
+
+    async function handleCopyLink(serverId, copyButton) {
+        if (copyButton.disabled) return;
+        let details = getDetails(serverId);
+        if (!details?.link) {
+            try {
+                details = await fetchServerDetails(serverId);
+                rememberDetails(serverId, details);
+                applyDetailsToRow(serverId, details);
+                await persistDetails();
+            } catch (error) {
+                console.error(
+                    'RoValra: Failed to load a private server link',
+                    error,
+                );
+            }
+        }
+        const link = getDetails(serverId)?.link;
+        if (!link) {
+            flashButtonText(copyButton, ts('quickPlay.error'));
+            return;
+        }
+        try {
+            await navigator.clipboard.writeText(link);
+            flashButtonText(copyButton, ts('quickPlay.copied'));
+        } catch (error) {
+            console.error(
+                'RoValra: Failed to copy a private server link',
+                error,
+            );
+            flashButtonText(copyButton, ts('quickPlay.error'));
+        }
+    }
 
     function createRow(server) {
+        const serverId = server.privateServerId;
         const row = document.createElement('div');
         row.className = 'rovalra-psm-row';
-        row.dataset.serverId = String(server.privateServerId);
+        row.dataset.serverId = String(serverId);
 
         const thumbWrap = document.createElement('div');
         thumbWrap.className = 'rovalra-psm-thumb';
@@ -327,79 +502,79 @@ export async function renderPrivateServerManager(container) {
 
         nameRow.append(name, createExpiryPill(server));
 
-        const labelInput = document.createElement('input');
-        labelInput.type = 'text';
-        labelInput.className = 'rovalra-psm-label-input';
-        labelInput.placeholder = ui('labelPlaceholder');
-        labelInput.maxLength = LABEL_MAX_LENGTH;
-        labelInput.value = labels[server.privateServerId] || '';
-        labelInput.addEventListener('change', async () => {
-            labelInput.disabled = true;
-            try {
-                await saveLabel(server.privateServerId, labelInput.value);
-                labels = await getLabels();
-                labelInput.value = labels[server.privateServerId] || '';
-            } catch (error) {
-                console.warn(
-                    'RoValra: Failed to save a private server label',
-                    error,
-                );
-            } finally {
-                labelInput.disabled = false;
-            }
+        const renameInput = document.createElement('input');
+        renameInput.type = 'text';
+        renameInput.className = 'rovalra-psm-rename-input';
+        renameInput.placeholder = ui('renamePlaceholder');
+        renameInput.setAttribute('aria-label', ui('renamePlaceholder'));
+        renameInput.maxLength = RENAME_MAX_LENGTH;
+        renameInput.value = server.name || '';
+
+        const errorBox = document.createElement('div');
+        errorBox.className = 'rovalra-psm-row-error';
+        errorBox.hidden = true;
+
+        renameInput.addEventListener('change', () => {
+            handleRename(server, name, renameInput, errorBox);
         });
 
-        info.append(nameRow, labelInput);
+        info.append(nameRow, renameInput, errorBox);
 
-        const allowButton = createButton(ui('allowFriends'), 'secondary', {
-            onClick: async () => {
-                if (allowButton.disabled) return;
-                allowButton.disabled = true;
-                try {
-                    const response = await patchFriendsAllowed(
-                        server.privateServerId,
-                    );
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
-                    }
-                    allowButton.textContent = ui('allowDone');
-                    allowButton.classList.add('rovalra-psm-allow-done');
-                } catch (error) {
-                    console.error(
-                        'RoValra: Failed to allow friends on a private server',
-                        error,
-                    );
-                    allowButton.textContent = ui('allowFailed');
-                    setTimeout(() => {
-                        allowButton.textContent = ui('allowFriends');
-                        allowButton.disabled = false;
-                    }, 2500);
-                }
+        const actions = document.createElement('div');
+        actions.className = 'rovalra-psm-actions';
+
+        const toggleRow = document.createElement('div');
+        toggleRow.className = 'rovalra-psm-toggle-row';
+
+        const toggleLabel = document.createElement('span');
+        toggleLabel.textContent = ts('privateServer.friendsAllowed');
+
+        const knownDetails = getDetails(serverId);
+        const toggle = createToggle({
+            checked: knownDetails?.permissions?.friendsAllowed === true,
+            onChange: (newState) => {
+                handleToggle(serverId, newState, toggle);
             },
         });
-        allowButton.classList.add('rovalra-psm-allow-button');
+        toggle.classList.add('rovalra-psm-friends-toggle');
+        toggle.setAttribute(
+            'aria-label',
+            ts('privateServer.friendsAllowed'),
+        );
+        if (!knownDetails) toggle.disabled = true;
 
-        row.append(thumbWrap, info, allowButton);
+        toggleRow.append(toggleLabel, toggle);
+
+        const copyButton = createButton(ts('quickPlay.copyLink'), 'secondary', {
+            onClick: () => {
+                handleCopyLink(serverId, copyButton);
+            },
+        });
+        copyButton.classList.add('rovalra-psm-copy-button');
+        if (!knownDetails?.link) copyButton.disabled = true;
+
+        actions.append(toggleRow, copyButton);
+
+        row.append(thumbWrap, info, actions);
+        rowControls.set(String(serverId), { toggle, copyButton });
         return row;
     }
 
     function renderRows() {
-        const query = searchInput.value.trim().toLowerCase();
+        if (!list) return;
+        rowControls.clear();
+        const query = searchInput ? searchInput.value.trim().toLowerCase() : '';
         list.innerHTML = '';
 
         const visible = servers.filter((server) => {
             if (!query) return true;
-            const label = labels[server.privateServerId] || '';
-            return (
-                String(server.name || '')
-                    .toLowerCase()
-                    .includes(query) ||
-                label.toLowerCase().includes(query)
-            );
+            return String(server.name || '')
+                .toLowerCase()
+                .includes(query);
         });
 
         if (!visible.length) {
-            appendStatus(list, ui('noMatches'));
+            appendStatus(list, servers.length ? ui('noMatches') : ui('empty'));
             return;
         }
 
@@ -408,6 +583,155 @@ export async function renderPrivateServerManager(container) {
         });
     }
 
-    searchInput.addEventListener('input', renderRows);
-    renderRows();
+    function buildInterface() {
+        container.innerHTML = '';
+
+        const toolbar = document.createElement('div');
+        toolbar.className = 'rovalra-psm-toolbar';
+
+        searchInput = document.createElement('input');
+        searchInput.type = 'search';
+        searchInput.className = 'rovalra-psm-search';
+        searchInput.placeholder = ui('searchPlaceholder');
+        searchInput.setAttribute('aria-label', ui('searchPlaceholder'));
+        searchInput.addEventListener('input', renderRows);
+
+        const refreshButton = createButton(ui('refresh'), 'secondary', {
+            onClick: () => {
+                refreshServers();
+            },
+        });
+
+        const bulkButton = createButton(ui('bulkButton'), 'primary', {
+            onClick: () => {
+                showConfirmationPrompt({
+                    title: ui('bulkAllowTitle'),
+                    message: ui('bulkAllowMessage', { count: servers.length }),
+                    confirmText: ui('bulkAllowConfirm'),
+                    confirmType: 'primary',
+                    onConfirm: () => {
+                        runBulkAllow(servers, list, (serverId, allowed) => {
+                            const previous = getDetails(serverId) || {};
+                            rememberDetails(serverId, {
+                                ...previous,
+                                permissions: {
+                                    ...(previous.permissions || {}),
+                                    friendsAllowed: allowed,
+                                },
+                            });
+                            persistDetails();
+                        });
+                    },
+                });
+            },
+        });
+
+        toolbar.append(searchInput, refreshButton, bulkButton);
+
+        list = document.createElement('div');
+        list.className = 'rovalra-psm-list';
+        container.append(toolbar, list);
+    }
+
+    async function loadThumbnails() {
+        if (!servers.length) return;
+        try {
+            thumbnailMap = await fetchThumbnails(
+                servers.map((server) => ({ id: server.universeId })),
+                'GameIcon',
+                '150x150',
+            );
+        } catch (error) {
+            console.warn('RoValra: Failed to load private server icons', error);
+            return;
+        }
+        if (!list) return;
+        const rows = list.querySelectorAll('[data-server-id]');
+        rows.forEach((row) => {
+            const current = servers.find(
+                (server) =>
+                    String(server.privateServerId) === row.dataset.serverId,
+            );
+            if (!current) return;
+            const thumbData = thumbnailMap.get(Number(current.universeId));
+            if (!thumbData || !thumbData.imageUrl) return;
+            const image = row.querySelector('.rovalra-psm-thumb img');
+            if (image && !image.src) image.src = thumbData.imageUrl;
+        });
+    }
+
+    async function loadAllDetails() {
+        const queue = [...servers];
+        async function worker() {
+            while (queue.length) {
+                const server = queue.shift();
+                const serverId = server.privateServerId;
+                try {
+                    const details = await fetchServerDetails(serverId);
+                    rememberDetails(serverId, details);
+                    applyDetailsToRow(serverId, details);
+                } catch (error) {
+                    console.warn(
+                        'RoValra: Failed to load private server details',
+                        error,
+                    );
+                }
+            }
+        }
+        const workerCount = Math.min(DETAILS_CONCURRENCY, queue.length);
+        const workers = [];
+        for (let i = 0; i < workerCount; i++) {
+            workers.push(worker());
+        }
+        await Promise.all(workers);
+        await persistDetails();
+    }
+
+    async function refreshServers() {
+        if (isRefreshing) return;
+        isRefreshing = true;
+        try {
+            // Always revalidate in the background so creations, deletions and
+            // external changes are picked up and the cache stays in sync.
+            const freshServers = await fetchAllServers();
+            servers = freshServers;
+            await setServersCache(freshServers);
+            if (!list) buildInterface();
+            renderRows();
+            loadThumbnails();
+            await loadAllDetails();
+        } catch (error) {
+            console.warn('RoValra: Failed to load private servers', error);
+            if (!list) {
+                container.innerHTML = '';
+                appendStatus(container, ui('loadFailed'));
+            }
+        } finally {
+            isRefreshing = false;
+        }
+    }
+
+    // Render instantly from the local cache when available, then revalidate.
+    try {
+        const [cachedServers, cachedDetails] = await Promise.all([
+            getServersCache(),
+            getDetailsCache(),
+        ]);
+        if (cachedServers && cachedServers.servers.length) {
+            servers = cachedServers.servers;
+            for (const [serverId, details] of Object.entries(cachedDetails)) {
+                rememberDetails(serverId, details);
+            }
+            buildInterface();
+            renderRows();
+            loadThumbnails();
+        } else {
+            appendStatus(container, ui('loading'));
+        }
+    } catch (error) {
+        console.warn('RoValra: Failed to read the private server cache', error);
+        appendStatus(container, ui('loading'));
+    }
+
+    await refreshServers();
 }

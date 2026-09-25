@@ -1,6 +1,5 @@
 import { observeElement } from '../observer.js';
 import { SETTINGS_CONFIG } from './settingConfig.js';
-import { getCachedBorders } from '../configs/borders.js';
 import { parseMarkdown } from '../utils/markdown.js';
 import { getFullRegionName, getContinent } from '../regions.js';
 import { getCurrentTheme, THEME_CONFIG } from '../theme.js';
@@ -26,8 +25,6 @@ import {
 import { getUserDisplayName } from '../apis/users.js';
 import { createUserCard } from '../ui/profile/userCard.js';
 import { getAuthenticatedUserId } from '../user.js';
-import { getBorders } from '../configs/borders.js';
-import { applyBorderToContainer } from '../../features/profile/avatarBorder.js';
 import {
     getProfilePronounsLength,
     replacePronounSpecialCharacters,
@@ -235,7 +232,6 @@ async function setupAvatarPreview(container, inputElement, settingName) {
     container.innerHTML = '';
     container.appendChild(card);
 
-    let lastBorder = null;
     let lastGradient = null;
 
     const updatePreview = async (liveData = null) => {
@@ -243,32 +239,7 @@ async function setupAvatarPreview(container, inputElement, settingName) {
         if (!avatarEl) return;
 
         const settings = await loadSettings();
-        const borderChoice = settings.avatarBorderChoice || 'none';
         const grad = liveData || settings.profileGradient;
-
-        if (borderChoice !== lastBorder) {
-            const existingImg = avatarEl.querySelector(
-                '.rovalra-avatar-border',
-            );
-            if (existingImg) existingImg.remove();
-
-            const clip = avatarEl.querySelector('.rovalra-avatar-border-clip');
-            if (clip) {
-                while (clip.firstChild) avatarEl.appendChild(clip.firstChild);
-                clip.remove();
-            }
-
-            delete avatarEl.dataset.rovalraBorderLoading;
-
-            if (borderChoice !== 'none') {
-                const borders = await getBorders();
-                const border = borders.find((b) => b.value === borderChoice);
-                if (border && border.link) {
-                    applyBorderToContainer(avatarEl, border.link, true);
-                }
-            }
-            lastBorder = borderChoice;
-        }
 
         const gradString = grad ? JSON.stringify(grad) : '';
         if (gradString !== lastGradient) {
@@ -288,7 +259,7 @@ async function setupAvatarPreview(container, inputElement, settingName) {
 
     const globalSyncHandler = (e) => {
         const { name } = e.detail;
-        if (name === 'avatarBorderChoice' || name === 'profileGradient') {
+        if (name === 'profileGradient') {
             updatePreview();
         }
     };
@@ -531,8 +502,6 @@ export function generateSettingInput(settingName, setting, REGIONS = {}) {
                     dropdownOptions.push(...regionsByContinent[continent]);
                 }
             });
-        } else if (setting.options === 'BORDERS') {
-            dropdownOptions = getCachedBorders();
         } else if (Array.isArray(setting.options)) {
             dropdownOptions = setting.options;
         }

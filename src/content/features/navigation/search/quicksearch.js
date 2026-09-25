@@ -28,7 +28,6 @@ import { getFullRegionName, getRegionData } from '../../../core/regions.js';
 import { createScrollButtons } from '../../../core/ui/general/scrollButtons.js';
 import { showConfirmationPrompt } from '../../../core/ui/confirmationPrompt.js';
 import { t, ts } from '../../../core/locale/i18n.js';
-import { applyBorderToContainer } from '../../profile/avatarBorder.js';
 import { applyDisplayNameGradientToElement } from '../../profile/header/displayNameGradient.js';
 
 let lastSearchedQuery = '';
@@ -204,7 +203,6 @@ let searchSettings = {
     searchHistoryEnabled: true,
     profileBackgroundGradientEnabled: true,
     applyGradientToAvatarTile: true,
-    avatarBorderEnabled: true,
     displayNameGradientEnabled: true,
 };
 
@@ -218,7 +216,6 @@ function updateSearchSettings() {
             'searchHistoryEnabled',
             'profileBackgroundGradientEnabled',
             'applyGradientToAvatarTile',
-            'avatarBorderEnabled',
             'displayNameGradientEnabled',
         ],
         (result) => {
@@ -260,30 +257,6 @@ function getQuickSearchCosmetics(userId) {
     return quickSearchCosmeticsPromises.get(cacheKey);
 }
 
-function waitForConnectedElement(element, timeoutMs = 1500) {
-    if (element.isConnected) return Promise.resolve(true);
-
-    return new Promise((resolve) => {
-        const startedAt = Date.now();
-
-        const check = () => {
-            if (element.isConnected) {
-                resolve(true);
-                return;
-            }
-
-            if (Date.now() - startedAt >= timeoutMs) {
-                resolve(false);
-                return;
-            }
-
-            requestAnimationFrame(check);
-        };
-
-        requestAnimationFrame(check);
-    });
-}
-
 async function applyUserCosmetics(
     userId,
     thumbContainer,
@@ -292,7 +265,6 @@ async function applyUserCosmetics(
 ) {
     if (
         !searchSettings.profileBackgroundGradientEnabled &&
-        !searchSettings.avatarBorderEnabled &&
         !searchSettings.displayNameGradientEnabled
     ) {
         return;
@@ -312,17 +284,6 @@ async function applyUserCosmetics(
                 thumbContainer.style.backgroundSize = '250% 250%';
                 thumbContainer.style.backgroundPosition = 'center';
             }
-        }
-
-        if (
-            searchSettings.avatarBorderEnabled &&
-            userSettings?.border &&
-            userSettings.border !== 'none'
-        ) {
-            const connected = await waitForConnectedElement(thumbContainer);
-            if (!connected) return;
-
-            await applyBorderToContainer(thumbContainer, userSettings.border);
         }
 
         if (searchSettings.displayNameGradientEnabled && displayNameEl) {
@@ -1736,8 +1697,7 @@ export function init() {
                 changes.friendSearchEnabled ||
                 changes.searchHistoryEnabled ||
                 changes.profileBackgroundGradientEnabled ||
-                changes.applyGradientToAvatarTile ||
-                changes.avatarBorderEnabled
+                changes.applyGradientToAvatarTile
             ) {
                 updateSearchSettings();
             }

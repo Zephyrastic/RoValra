@@ -18,8 +18,6 @@ const STATIC_SETTINGS_TAB_IDS = new Set([
     'info',
     'credits',
     'donatorPerks',
-    'store',
-    'changelogs',
     'whatsNew',
     'privateServers',
     'accountStanding',

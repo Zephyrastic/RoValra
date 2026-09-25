@@ -27,5 +27,8 @@ export function createToggle({ id, checked = false, onChange }) {
     });
 
     setChecked(checked);
+    // Exposed so callers can sync the visual state after an async update
+    // (e.g. revert on API failure or reflect a bulk change).
+    button.setChecked = setChecked;
     return button;
 }
