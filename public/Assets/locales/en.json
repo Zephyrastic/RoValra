@@ -803,7 +803,8 @@
             "settings": "Settings",
             "accountStanding": "Account Standing",
             "whatsNew": "What's New",
-            "privateServers": "Private Servers"
+            "privateServers": "Private Servers",
+            "performance": "Performance"
         },
         "info": {
             "title": "RoValra Information!",
@@ -1051,6 +1052,17 @@
                 "cancelled": "Cancelled after {{count}} successful updates.",
                 "completed": "Done! {{successCount}} succeeded, {{errorCount}} failed.",
                 "requestFailed": "Request failed."
+            },
+            "performance": {
+                "title": "Performance",
+                "loading": "Loading performance settings...",
+                "loadFailed": "Failed to load performance settings. Please try again later.",
+                "description": "Trade visual flair for speed across Roblox and RoValra.",
+                "masterTitle": "Performance Mode",
+                "masterDescription": "Master toggle that bundles every performance option on this tab. While enabled, animations stay off.",
+                "animationsTitle": "Disable Animations",
+                "animationsDescription": "Turns off animations and transitions sitewide, including Roblox's own interface.",
+                "animationsForced": "Forced on while Performance Mode is enabled."
             },
             "parentRequest": {
                 "sendingTitle": "Sending Request",

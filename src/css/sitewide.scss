@@ -88,3 +88,17 @@ body:where(.dark-theme),
 .rovalra-canvas > canvas {
     border-radius: var(--radius-medium, 8px) !important;
 }
+
+// RoValra "Disable animations" (Performance tab, sitewide): freeze CSS
+// animations and transitions everywhere, including Roblox's own UI.
+// Near-zero durations (instead of `none`) keep animation events firing so
+// scripts waiting on them do not hang.
+html.rovalra-disable-animations,
+html.rovalra-disable-animations *,
+html.rovalra-disable-animations *::before,
+html.rovalra-disable-animations *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+}

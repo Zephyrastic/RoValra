@@ -3,6 +3,7 @@ import { getRegionData, loadDatacenterMap } from '../../core/regions.js';
 import { init as initBulkUnblock } from './bulkUnblock.js';
 import { renderWhatsNew, refreshWhatsNewSidebarBadge } from './whatsNew.js';
 import { renderPrivateServerManager } from './privateServerManager.js';
+import { renderPerformance } from './performance.js';
 import { observeElement } from '../../core/observer.js';
 import { generateSingleSettingHTML } from '../../core/settings/generateSettings.js';
 import { SETTINGS_CONFIG } from '../../core/settings/settingConfig.js';
@@ -2200,6 +2201,19 @@ export const buttonData = [
         },
     },
     {
+        id: 'performance',
+        get text() {
+            return ts('settings.tabs.performance');
+        },
+        get content() {
+            return `
+            <div style="padding: 8px;">
+                <h2 style="margin-bottom: 15px; color: var(--rovalra-main-text-color) !important;">${ui('performance.title')}</h2>
+                <div id="rovalra-performance-container" style="color: var(--rovalra-secondary-text-color);">${ui('performance.loading')}</div>
+            </div>`;
+        },
+    },
+    {
         id: 'accountStanding',
         get text() {
             return ts('settings.tabs.accountStanding');
@@ -2615,7 +2629,8 @@ export async function updateContent(buttonInfo, contentContainer) {
         buttonId === 'accountStanding' ||
         buttonId === 'donatorPerks' ||
         buttonId === 'whatsNew' ||
-        buttonId === 'privateServers'
+        buttonId === 'privateServers' ||
+        buttonId === 'performance'
     ) {
         ((contentContainer.innerHTML = `
             <div id="settings-content" style="padding: 0; background-color: transparent !important;">
@@ -2767,6 +2782,15 @@ export async function updateContent(buttonInfo, contentContainer) {
         );
         if (privateServersContainer) {
             renderPrivateServerManager(privateServersContainer);
+        }
+    }
+
+    if (buttonId === 'performance') {
+        const performanceContainer = contentContainer.querySelector(
+            '#rovalra-performance-container',
+        );
+        if (performanceContainer) {
+            renderPerformance(performanceContainer);
         }
     }
 
