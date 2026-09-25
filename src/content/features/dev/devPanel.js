@@ -20,7 +20,26 @@ const COPY_FEEDBACK_MS = 1500;
 
 const t = (key) => ts(`devPanel.${key}`);
 
-function createDevIcon() {
+const PANEL_ICON_PATHS = {
+    terminal: ['M4 17l6-6-6-6', 'M12 19h8'],
+    copy: [
+        'M9 9h10v10H9z',
+        'M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1',
+    ],
+    external: ['M14 4h6v6', 'M20 4l-9 9', 'M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6'],
+    refresh: ['M20 11a8 8 0 1 0 1 4', 'M20 4v7h-7'],
+    page: ['M6 3h8l4 4v14H6z', 'M14 3v5h5', 'M9 13h6', 'M9 17h6'],
+    ids: ['M4 6h16', 'M4 12h16', 'M4 18h10'],
+    tools: ['M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-3 3-3-3 3-3z'],
+    user: ['M20 21a8 8 0 0 0-16 0', 'M12 13a4 4 0 1 0 0-8 4 4 0 0 0 0 8z'],
+    group: ['M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2', 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', 'M22 21v-2a4 4 0 0 0-3-3.87', 'M16 3.13a4 4 0 0 1 0 7.75'],
+    game: ['M6 9h12v10H6z', 'M3 13h3', 'M18 13h3', 'M7 6l1-2', 'M17 6l-1-2', 'M8 13h.01', 'M16 13h.01'],
+    catalog: ['M4 4h16v16H4z', 'M8 8h8', 'M8 12h8', 'M8 16h5'],
+    dashboard: ['M4 4h6v6H4z', 'M14 4h6v6h-6z', 'M4 14h6v6H4z', 'M14 14h6v6h-6z'],
+    docs: ['M5 3h10l4 4v14H5z', 'M15 3v5h5', 'M8 12h8', 'M8 16h6'],
+};
+
+function createPanelIcon(name, size = 18) {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('aria-hidden', 'true');
     svg.setAttribute('viewBox', '0 0 24 24');
@@ -29,24 +48,25 @@ function createDevIcon() {
     svg.setAttribute('stroke-width', '1.7');
     svg.setAttribute('stroke-linecap', 'round');
     svg.setAttribute('stroke-linejoin', 'round');
-    svg.style.width = '20px';
-    svg.style.height = '20px';
+    svg.style.width = `${size}px`;
+    svg.style.height = `${size}px`;
     svg.style.display = 'block';
+    svg.style.flexShrink = '0';
 
-    const prompt = document.createElementNS(
-        'http://www.w3.org/2000/svg',
-        'path',
-    );
-    prompt.setAttribute('d', 'M4 17l6-6-6-6');
+    (PANEL_ICON_PATHS[name] || PANEL_ICON_PATHS.tools).forEach((pathData) => {
+        const path = document.createElementNS(
+            'http://www.w3.org/2000/svg',
+            'path',
+        );
+        path.setAttribute('d', pathData);
+        svg.appendChild(path);
+    });
 
-    const cursor = document.createElementNS(
-        'http://www.w3.org/2000/svg',
-        'path',
-    );
-    cursor.setAttribute('d', 'M12 19h8');
-
-    svg.append(prompt, cursor);
     return svg;
+}
+
+function createDevIcon() {
+    return createPanelIcon('terminal', 20);
 }
 
 function stripItemState(item) {
@@ -71,10 +91,19 @@ function stripItemState(item) {
 }
 
 function flashButtonText(button, text) {
-    const originalText = button.textContent;
-    button.textContent = text;
+    const label = button.querySelector('.rovalra-devpanel-action-label');
+    const originalText = label?.textContent || button.textContent;
+    if (label) {
+        label.textContent = text;
+    } else {
+        button.textContent = text;
+    }
     setTimeout(() => {
-        button.textContent = originalText;
+        if (label) {
+            label.textContent = originalText;
+        } else {
+            button.textContent = originalText;
+        }
     }, COPY_FEEDBACK_MS);
 }
 
@@ -90,16 +119,14 @@ function createCopyRow(labelText, valueText) {
     value.className = 'rovalra-devpanel-value';
     value.textContent = valueText;
 
-    const copyButton = createButton(ts('quickPlay.copyLink'), 'secondary', {
-        onClick: async () => {
-            try {
-                await navigator.clipboard.writeText(valueText);
-                flashButtonText(copyButton, ts('quickPlay.copied'));
-            } catch (error) {
-                console.error('RoValra: Failed to copy from dev panel', error);
-                flashButtonText(copyButton, ts('quickPlay.error'));
-            }
-        },
+    const copyButton = createIconButton(t('copy'), 'copy', async () => {
+        try {
+            await navigator.clipboard.writeText(valueText);
+            flashButtonText(copyButton, t('copied'));
+        } catch (error) {
+            console.error('RoValra: Failed to copy from dev panel', error);
+            flashButtonText(copyButton, t('error'));
+        }
     });
     copyButton.classList.add('rovalra-devpanel-copy');
 
@@ -107,21 +134,34 @@ function createCopyRow(labelText, valueText) {
     return row;
 }
 
-function createLinkButton(labelText, href) {
-    return createButton(labelText, 'secondary', {
-        onClick: () => {
-            window.open(href, '_blank', 'noopener');
-        },
+function createIconButton(labelText, iconName, onClick) {
+    const button = createButton('', 'secondary', { onClick });
+    button.classList.add('rovalra-devpanel-action');
+    button.setAttribute('aria-label', labelText);
+
+    const label = document.createElement('span');
+    label.className = 'rovalra-devpanel-action-label';
+    label.textContent = labelText;
+    button.append(createPanelIcon(iconName, 16), label);
+    return button;
+}
+
+function createLinkButton(labelText, href, iconName = 'external') {
+    return createIconButton(labelText, iconName, () => {
+        window.open(href, '_blank', 'noopener');
     });
 }
 
-function createSection(titleText) {
+function createSection(titleText, iconName = 'tools') {
     const section = document.createElement('section');
     section.className = 'rovalra-devpanel-section';
 
     const title = document.createElement('h3');
     title.className = 'rovalra-devpanel-section-title';
-    title.textContent = titleText;
+    title.append(createPanelIcon(iconName, 17));
+    const titleLabel = document.createElement('span');
+    titleLabel.textContent = titleText;
+    title.appendChild(titleLabel);
     section.appendChild(title);
 
     return section;
@@ -152,32 +192,30 @@ function getPageType({ placeId, userId, groupId, assetId }) {
 }
 
 function createCopyAllButton() {
-    const button = createButton(t('copyAllIds'), 'secondary', {
-        onClick: async () => {
-            const values = [
-                ...document.querySelectorAll(
-                    '.rovalra-devpanel-id-section .rovalra-devpanel-row',
-                ),
-            ]
-                .filter((row) => row.querySelector('.rovalra-devpanel-copy'))
-                .map((row) =>
-                    row.querySelector('.rovalra-devpanel-value')?.textContent.trim(),
-                )
-                .filter(Boolean);
+    const button = createIconButton(t('copyAllIds'), 'copy', async () => {
+        const values = [
+            ...document.querySelectorAll(
+                '.rovalra-devpanel-id-section .rovalra-devpanel-row',
+            ),
+        ]
+            .filter((row) => row.querySelector('.rovalra-devpanel-copy'))
+            .map((row) =>
+                row.querySelector('.rovalra-devpanel-value')?.textContent.trim(),
+            )
+            .filter(Boolean);
 
-            if (values.length === 0) {
-                flashButtonText(button, t('noIdsToCopy'));
-                return;
-            }
+        if (values.length === 0) {
+            flashButtonText(button, t('noIdsToCopy'));
+            return;
+        }
 
-            try {
-                await navigator.clipboard.writeText(values.join('\n'));
-                flashButtonText(button, ts('quickPlay.copied'));
-            } catch (error) {
-                console.error('RoValra: Failed to copy dev IDs', error);
-                flashButtonText(button, ts('quickPlay.error'));
-            }
-        },
+        try {
+            await navigator.clipboard.writeText(values.join('\n'));
+            flashButtonText(button, t('copied'));
+        } catch (error) {
+            console.error('RoValra: Failed to copy dev IDs', error);
+            flashButtonText(button, t('error'));
+        }
     });
 
     return button;
@@ -193,25 +231,47 @@ async function buildPanelBody(body) {
     const groupId = getGroupIdFromUrl(href);
     const assetId = getAssetIdFromUrl(href);
     const hasContext = Boolean(placeId || userId || groupId || assetId);
+    let ownId = null;
+    let universeId = null;
 
-    const pageSection = createSection(t('sections.page'));
+    const pageSection = createSection(t('sections.page'), 'page');
     pageSection.append(
         createInfoRow(
             t('pageType'),
             getPageType({ placeId, userId, groupId, assetId }),
         ),
-        createCopyRow(t('currentUrl'), href),
+        createInfoRow(t('currentUrl'), href),
     );
+
+    const pageActions = document.createElement('div');
+    pageActions.className = 'rovalra-devpanel-links';
+    const copyUrlButton = createIconButton(t('copyUrl'), 'copy', async () => {
+        try {
+            await navigator.clipboard.writeText(href);
+            flashButtonText(copyUrlButton, t('copied'));
+        } catch (error) {
+            console.error('RoValra: Failed to copy the current URL', error);
+            flashButtonText(copyUrlButton, t('error'));
+        }
+    });
+    pageActions.append(
+        copyUrlButton,
+        createIconButton(t('refresh'), 'refresh', () => {
+            buildPanelBody(body);
+        }),
+    );
+    pageSection.appendChild(pageActions);
     body.appendChild(pageSection);
 
-    const idSection = createSection(t('sections.ids'));
+    const idSection = createSection(t('sections.ids'), 'ids');
     idSection.classList.add('rovalra-devpanel-id-section');
 
     try {
-        const [ownId, ownUsername] = await Promise.all([
+        const [authenticatedId, ownUsername] = await Promise.all([
             getAuthenticatedUserId(),
             getAuthenticatedUsername(),
         ]);
+        ownId = authenticatedId;
         if (ownId) {
             idSection.appendChild(
                 createCopyRow(t('myUserId'), String(ownId)),
@@ -251,7 +311,7 @@ async function buildPanelBody(body) {
 
         try {
             const details = await getPlacesDetails([placeId]);
-            const universeId =
+            universeId =
                 details?.[0]?.universeId ?? details?.[0]?.universeID ?? null;
             if (universeId) {
                 const freshRow = createCopyRow(
@@ -279,16 +339,17 @@ async function buildPanelBody(body) {
     idSection.appendChild(idActions);
     body.appendChild(idSection);
 
-    const linksSection = createSection(t('sections.links'));
+    const linksSection = createSection(t('sections.links'), 'tools');
     const linksRow = document.createElement('div');
     linksRow.className = 'rovalra-devpanel-links';
-    linksRow.appendChild(createLinkButton(t('openCurrentPage'), href));
+    linksRow.appendChild(createLinkButton(t('openCurrentPage'), href, 'page'));
 
     if (userId) {
         linksRow.appendChild(
             createLinkButton(
                 t('openProfile'),
                 `https://www.roblox.com/users/${userId}/profile`,
+                'user',
             ),
         );
     }
@@ -297,6 +358,7 @@ async function buildPanelBody(body) {
             createLinkButton(
                 t('openGroup'),
                 `https://www.roblox.com/communities/${groupId}`,
+                'group',
             ),
         );
     }
@@ -305,6 +367,7 @@ async function buildPanelBody(body) {
             createLinkButton(
                 t('openCatalogItem'),
                 `https://www.roblox.com/catalog/${assetId}`,
+                'catalog',
             ),
         );
     }
@@ -313,17 +376,43 @@ async function buildPanelBody(body) {
             createLinkButton(
                 t('openPlace'),
                 `https://www.roblox.com/games/${placeId}/`,
+                'game',
             ),
             createLinkButton(
                 t('openConfigure'),
                 `https://www.roblox.com/places/${placeId}/update`,
+                'tools',
             ),
         );
     }
-    linksRow.appendChild(
+    if (ownId) {
+        linksRow.appendChild(
+            createLinkButton(
+                t('openMyAvatar'),
+                'https://www.roblox.com/my/avatar',
+                'user',
+            ),
+        );
+    }
+    if (universeId) {
+        linksRow.appendChild(
+            createLinkButton(
+                t('openUniverse'),
+                `https://www.roblox.com/games?universeId=${universeId}`,
+                'game',
+            ),
+        );
+    }
+    linksRow.append(
         createLinkButton(
             t('openDashboard'),
             'https://create.roblox.com/dashboard/creations',
+            'dashboard',
+        ),
+        createLinkButton(
+            t('openDevDocs'),
+            'https://create.roblox.com/docs',
+            'docs',
         ),
     );
     linksSection.appendChild(linksRow);
@@ -347,7 +436,7 @@ function openDevPanel() {
                 onClick: () => close(),
             }),
         ],
-        maxWidth: '480px',
+        maxWidth: '600px',
     });
     buildPanelBody(body);
 }
