@@ -2,7 +2,11 @@ import { callRobloxApiJson } from '../../core/api.js';
 import { observeElement, observeChildren } from '../../core/observer.js';
 import { getUserIdFromUrl, getGroupIdFromUrl } from '../../core/idExtractor.js';
 import { createInteractiveTimestamp } from '../../core/ui/time/time.js';
-import { getJoinDate } from './groupFilters.js';
+import {
+    getJoinDate,
+    getJoinDateFailure,
+    clearJoinDateFailure,
+} from './groupFilters.js';
 import { ts } from '../../core/locale/i18n.js';
 
 let rolesPromise = null;
@@ -131,7 +135,7 @@ export function init() {
                         }
                     }
 
-                    if (joinedDate) {
+                    const ensureJoinDiv = () => {
                         let joinDiv = metadataContainer.querySelector(
                             '.rovalra-group-joined',
                         );
@@ -145,17 +149,6 @@ export function init() {
                             metadataContainer.appendChild(joinDiv);
                         }
                         joinDiv.textContent = `${ts('groups.joinedLabel')} `;
-
-                        if (joinedDate.getTime() > 0) {
-                            joinDiv.appendChild(
-                                createInteractiveTimestamp(joinedDate),
-                            );
-                        } else {
-                            const unknownSpan = document.createElement('span');
-                            unknownSpan.textContent = ts('groups.unknown');
-                            joinDiv.appendChild(unknownSpan);
-                        }
-
                         Object.assign(joinDiv.style, {
                             color: 'var(--rovalra-secondary-text-color)',
                             fontSize: '14px',
@@ -177,6 +170,73 @@ export function init() {
                             'visible',
                             'important',
                         );
+                        return joinDiv;
+                    };
+
+                    const joinFailureTitle = (failure) =>
+                        ts('groups.joinDateError', {
+                            status: failure?.status ?? ts('groups.unknown'),
+                            interpolation: { escapeValue: false },
+                        });
+
+                    if (joinedDate) {
+                        const joinDiv = ensureJoinDiv();
+
+                        if (joinedDate.getTime() > 0) {
+                            joinDiv.appendChild(
+                                createInteractiveTimestamp(joinedDate),
+                            );
+                        } else {
+                            const unknownSpan = document.createElement('span');
+                            unknownSpan.textContent = ts('groups.unknown');
+                            joinDiv.appendChild(unknownSpan);
+                        }
+                    } else if (groupJoinedDateEnabled) {
+                        // The lookup failed: show a retry affordance instead
+                        // of nothing so the row explains itself and can
+                        // recover without a page reload.
+                        const failure = getJoinDateFailure(groupId, userId);
+                        if (failure) {
+                            const joinDiv = ensureJoinDiv();
+                            const retry = document.createElement('button');
+                            retry.type = 'button';
+                            retry.className = 'rovalra-group-joined-retry';
+                            retry.textContent = ts('groups.retry');
+                            retry.title = joinFailureTitle(failure);
+                            Object.assign(retry.style, {
+                                background: 'none',
+                                border: 'none',
+                                padding: '0',
+                                margin: '0',
+                                color: 'inherit',
+                                font: 'inherit',
+                                cursor: 'pointer',
+                                textDecoration: 'underline',
+                            });
+                            retry.addEventListener('click', async (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (retry.disabled) return;
+                                retry.disabled = true;
+                                clearJoinDateFailure(groupId, userId);
+                                const fresh = await getJoinDate(
+                                    groupId,
+                                    userId,
+                                );
+                                if (fresh && fresh.getTime() > 0) {
+                                    joinDiv.textContent = `${ts('groups.joinedLabel')} `;
+                                    joinDiv.appendChild(
+                                        createInteractiveTimestamp(fresh),
+                                    );
+                                } else {
+                                    retry.disabled = false;
+                                    retry.title = joinFailureTitle(
+                                        getJoinDateFailure(groupId, userId),
+                                    );
+                                }
+                            });
+                            joinDiv.appendChild(retry);
+                        }
                     }
 
                     checkAndFixPlacement();

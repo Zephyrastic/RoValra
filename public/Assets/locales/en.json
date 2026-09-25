@@ -1890,7 +1890,9 @@
     "groups": {
         "createdLabel": "Created",
         "joinedLabel": "Joined",
-        "unknown": "Unknown"
+        "unknown": "Unknown",
+        "retry": "Retry",
+        "joinDateError": "Couldn't load the join date ({{status}}). Click to retry."
     },
     "showcase": {
         "tab": "Showcase",

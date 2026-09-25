@@ -31,12 +31,28 @@ export function getCachedJoinDate(groupId, userId) {
     return joinDateCache.get(joinDateCacheKey(groupId, userId)) || null;
 }
 
+export function getJoinDateFailure(groupId, userId) {
+    if (!groupId || !userId) return null;
+    const failure = joinDateFailures.get(joinDateCacheKey(groupId, userId));
+    if (!failure) return null;
+    if (Date.now() - failure.at >= JOIN_DATE_FAILURE_TTL_MS) {
+        joinDateFailures.delete(joinDateCacheKey(groupId, userId));
+        return null;
+    }
+    return failure;
+}
+
+export function clearJoinDateFailure(groupId, userId) {
+    if (!groupId || !userId) return;
+    joinDateFailures.delete(joinDateCacheKey(groupId, userId));
+}
+
 export async function getJoinDate(groupId, userId) {
     if (!groupId || !userId) return null;
     const key = joinDateCacheKey(groupId, userId);
     if (joinDateCache.has(key)) return joinDateCache.get(key);
     if (joinDatePromises.has(key)) return joinDatePromises.get(key);
-    const failedAt = joinDateFailures.get(key);
+    const failedAt = joinDateFailures.get(key)?.at;
     if (failedAt && Date.now() - failedAt < JOIN_DATE_FAILURE_TTL_MS) {
         return null;
     }
@@ -91,10 +107,13 @@ export async function getJoinDate(groupId, userId) {
                 `RoValra: Failed to fetch join date for group ${groupId}`,
                 e,
             );
+            joinDateFailures.set(key, {
+                at: Date.now(),
+                status:
+                    e?.status ?? e?.response?.status ?? e?.code ?? null,
+            });
+            return null;
         }
-
-        joinDateFailures.set(key, Date.now());
-        return null;
     })();
 
     joinDatePromises.set(key, promise);
