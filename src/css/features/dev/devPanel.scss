@@ -1,0 +1,43 @@
+.rovalra-devpanel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+}
+
+.rovalra-devpanel-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.rovalra-devpanel-label {
+    flex-shrink: 0;
+    width: 110px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--rovalra-main-text-color);
+}
+
+.rovalra-devpanel-value {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+    color: var(--rovalra-secondary-text-color);
+}
+
+.rovalra-devpanel-links {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+
+.rovalra-devpanel-note {
+    margin: 0;
+    font-size: 13px;
+    color: var(--rovalra-secondary-text-color);
+}

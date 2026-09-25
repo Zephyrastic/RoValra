@@ -1310,6 +1310,19 @@
         "regenerateLink": "Generate Link",
         "regenerated": "Generated!"
     },
+    "devPanel": {
+        "title": "Dev Panel",
+        "sidebarLabel": "Dev Panel",
+        "placeId": "Place ID",
+        "universeId": "Universe ID",
+        "placeUrl": "Place URL",
+        "loadingIds": "Loading...",
+        "universeLoadFailed": "Couldn't load the universe ID.",
+        "openConfigure": "Configure Place",
+        "openDashboard": "Create Dashboard",
+        "noGamePage": "Open any game page to see its place IDs here.",
+        "close": "Close"
+    },
     "devProducts": {
         "noProducts": "No developer products found.",
         "loadError": "Unable to load developer products for this game.",

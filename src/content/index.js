@@ -28,6 +28,7 @@ import { init as initPrivateGames } from './features/games/privateGames.js';
 import { init as initGamePassViewer } from './features/games/gamePassViewer.js';
 import { init as initQoLToggles } from './features/navigation/QoLToggles.js';
 import { init as initCopyId } from './features/sitewide/copyid.js';
+import { init as initDevPanel } from './features/dev/devPanel.js';
 import { init as initViewIds } from './features/sitewide/viewid.js';
 import { init as initQuickSearch } from './features/navigation/search/quicksearch.js';
 import { init as initRenderTest } from './features/developer/rendertest.js';
@@ -244,6 +245,7 @@ const featureRoutes = [
             initPlaytimeTracker,
             initQoLToggles,
             initCopyId,
+            initDevPanel,
             initViewIds,
             initBetaPrograms,
             initPreviousPrice,
