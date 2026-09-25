@@ -91,7 +91,10 @@ html.rovalra-minimal {
         box-shadow: none !important;
     }
 
-    // Sharp flat tiles with hairline borders.
+    // Sharp flat tiles with hairline borders. overflow: hidden keeps the
+    // thumbnail artwork's own rounding clipped to the tile's 6px edge so
+    // the two radii never double up. Tooltips are unaffected (they mount
+    // on document.body, not inside tiles).
     .game-card-container,
     .base-tile,
     .friends-carousel-tile,
@@ -100,6 +103,7 @@ html.rovalra-minimal {
         border: 1px solid var(--rovalra-minimal-border);
         box-shadow: none !important;
         background-color: var(--rovalra-minimal-surface);
+        overflow: hidden;
     }
 
     // Monochrome primary buttons: inverted text on text color.
