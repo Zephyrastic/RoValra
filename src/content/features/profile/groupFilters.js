@@ -7,6 +7,10 @@ import { ts } from '../../core/locale/i18n.js';
 
 const joinDateCache = new Map();
 const joinDatePromises = new Map();
+// Failure timestamps (memory-only). Failures are never written to persistent
+// storage: a single bad request must not stick a group on "Unknown" forever.
+const joinDateFailures = new Map();
+const JOIN_DATE_FAILURE_TTL_MS = 5 * 60 * 1000;
 const VIEW_PREFERENCE_KEY = 'rovalra_group_filters_view';
 const DEFAULT_VIEW = 'default';
 
@@ -19,26 +23,47 @@ function getStoredViewPreference() {
         .catch(() => DEFAULT_VIEW);
 }
 
+function joinDateCacheKey(groupId, userId) {
+    return `${userId}:${groupId}`;
+}
+
+export function getCachedJoinDate(groupId, userId) {
+    return joinDateCache.get(joinDateCacheKey(groupId, userId)) || null;
+}
+
 export async function getJoinDate(groupId, userId) {
-    if (!groupId || !userId) return new Date(0);
-    if (joinDateCache.has(groupId)) return joinDateCache.get(groupId);
-    if (joinDatePromises.has(groupId)) return joinDatePromises.get(groupId);
+    if (!groupId || !userId) return null;
+    const key = joinDateCacheKey(groupId, userId);
+    if (joinDateCache.has(key)) return joinDateCache.get(key);
+    if (joinDatePromises.has(key)) return joinDatePromises.get(key);
+    const failedAt = joinDateFailures.get(key);
+    if (failedAt && Date.now() - failedAt < JOIN_DATE_FAILURE_TTL_MS) {
+        return null;
+    }
 
     const promise = (async () => {
         const cacheKey = `join_date_${userId}_${groupId}`;
-        const cached = await CacheHandler.get(
-            'group_filters',
-            cacheKey,
-            'local',
-        );
-
-        if (cached) {
-            const date = new Date(cached);
-            joinDateCache.set(groupId, date);
-            return date;
-        }
-
         try {
+            const cached = await CacheHandler.get(
+                'group_filters',
+                cacheKey,
+                'local',
+            );
+            if (cached) {
+                const date = new Date(cached);
+                if (!Number.isNaN(date.getTime()) && date.getTime() > 0) {
+                    joinDateCache.set(key, date);
+                    return date;
+                }
+                // Drop "unknown" markers persisted by older versions so a
+                // previously poisoned entry is retried instead of stuck.
+                await CacheHandler.remove(
+                    'group_filters',
+                    cacheKey,
+                    'local',
+                );
+            }
+
             const filter = encodeURIComponent(`user == 'users/${userId}'`);
             const res = await callRobloxApiJson({
                 subdomain: 'apis',
@@ -50,50 +75,34 @@ export async function getJoinDate(groupId, userId) {
             const createTime = res?.groupMemberships?.[0]?.createTime;
             if (createTime) {
                 const date = new Date(createTime);
-                CacheHandler.set(
-                    'group_filters',
-                    cacheKey,
-                    createTime,
-                    'local',
-                );
-                joinDateCache.set(groupId, date);
-                return date;
+                if (!Number.isNaN(date.getTime()) && date.getTime() > 0) {
+                    CacheHandler.set(
+                        'group_filters',
+                        cacheKey,
+                        createTime,
+                        'local',
+                    );
+                    joinDateCache.set(key, date);
+                    return date;
+                }
             }
         } catch (e) {
-            if (e.status === 403 || e.response?.code === 'PERMISSION_DENIED') {
-                const unknownDate = new Date(0);
-                CacheHandler.set(
-                    'group_filters',
-                    cacheKey,
-                    unknownDate.toISOString(),
-                    'local',
-                );
-                joinDateCache.set(groupId, unknownDate);
-                return unknownDate;
-            }
-
             console.warn(
                 `RoValra: Failed to fetch join date for group ${groupId}`,
                 e,
             );
-
-            const fallbackDate = new Date(0);
-            CacheHandler.set(
-                'group_filters',
-                cacheKey,
-                fallbackDate.toISOString(),
-                'local',
-            );
-            joinDateCache.set(groupId, fallbackDate);
-            return fallbackDate;
         }
+
+        joinDateFailures.set(key, Date.now());
+        return null;
     })();
 
-    joinDatePromises.set(groupId, promise);
-    const result = await promise;
-    joinDatePromises.delete(groupId);
-
-    return result;
+    joinDatePromises.set(key, promise);
+    try {
+        return await promise;
+    } finally {
+        joinDatePromises.delete(key);
+    }
 }
 
 export function init() {
@@ -284,10 +293,10 @@ export function init() {
                                                 ?.getAttribute('href'),
                                         );
                                         const dateA =
-                                            joinDateCache.get(idA) ||
+                                            getCachedJoinDate(idA, userId) ||
                                             new Date(0);
                                         const dateB =
-                                            joinDateCache.get(idB) ||
+                                            getCachedJoinDate(idB, userId) ||
                                             new Date(0);
                                         return dateB - dateA;
                                     }
@@ -303,10 +312,10 @@ export function init() {
                                                 ?.getAttribute('href'),
                                         );
                                         const dateA =
-                                            joinDateCache.get(idA) ||
+                                            getCachedJoinDate(idA, userId) ||
                                             new Date(0);
                                         const dateB =
-                                            joinDateCache.get(idB) ||
+                                            getCachedJoinDate(idB, userId) ||
                                             new Date(0);
                                         return dateA - dateB;
                                     }
