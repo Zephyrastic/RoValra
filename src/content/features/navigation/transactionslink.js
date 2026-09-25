@@ -33,6 +33,21 @@ function matchesRoute(pathname, route) {
     return normalizedPath === route || normalizedPath.startsWith(`${route}/`);
 }
 
+function isCommunityIndexLink(communityLink) {
+    const path = stripLocalePrefix(
+        normalizePath(communityLink.href),
+    ).replace(/\/+$/, '');
+    return path === COMMUNITY_PATH;
+}
+
+function getSidebarRegion(anchor) {
+    return (
+        anchor.closest(
+            '#left-navigation-container, #navigation, .navigation',
+        ) || getSidebarContainer(anchor)
+    );
+}
+
 function createTransactionsIcon() {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('aria-hidden', 'true');
@@ -243,14 +258,18 @@ function initLocationChangeWatcher() {
 function insertTransactionsLink(communityLink, label) {
     if (!sidebarLinkEnabled) return;
 
-    if (!matchesRoute(normalizePath(communityLink.href), COMMUNITY_PATH)) {
-        return;
-    }
+    // Only the bare Communities nav entry may spawn the item. Group links
+    // (/communities/123) must never trigger insertion into whatever list
+    // happens to contain them.
+    if (!isCommunityIndexLink(communityLink)) return;
 
     const sidebar = getSidebarContainer(communityLink);
     if (!sidebar) return;
 
-    const existing = sidebar.querySelector(
+    // Guard the whole sidebar region, not just the immediate list: sibling
+    // lists in the same nav must not each mint their own copy.
+    const region = getSidebarRegion(communityLink);
+    const existing = (region || sidebar).querySelector(
         'a[data-rovalra-transactions-link="true"], a[href="/transactions"]',
     );
     if (existing) {

@@ -1313,6 +1313,10 @@
     "devPanel": {
         "title": "Dev Panel",
         "sidebarLabel": "Dev Panel",
+        "myUserId": "My User ID",
+        "userId": "User ID",
+        "groupId": "Group ID",
+        "assetId": "Asset ID",
         "placeId": "Place ID",
         "universeId": "Universe ID",
         "placeUrl": "Place URL",
@@ -1320,7 +1324,7 @@
         "universeLoadFailed": "Couldn't load the universe ID.",
         "openConfigure": "Configure Place",
         "openDashboard": "Create Dashboard",
-        "noGamePage": "Open any game page to see its place IDs here.",
+        "noGamePage": "Open a game, profile, community, or catalog page to see IDs here.",
         "close": "Close"
     },
     "devProducts": {

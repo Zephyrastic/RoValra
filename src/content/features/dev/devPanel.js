@@ -1,5 +1,11 @@
 import { observeElement } from '../../core/observer.js';
-import { getPlaceIdFromUrl } from '../../core/idExtractor.js';
+import {
+    getPlaceIdFromUrl,
+    getUserIdFromUrl,
+    getGroupIdFromUrl,
+    getAssetIdFromUrl,
+} from '../../core/idExtractor.js';
+import { getAuthenticatedUserId } from '../../core/user.js';
 import { getPlacesDetails } from '../../core/apis/games.js';
 import { createOverlay } from '../../core/ui/overlay.js';
 import { createButton } from '../../core/ui/buttons.js';
@@ -110,62 +116,103 @@ async function buildPanelBody(body) {
     body.className = 'rovalra-devpanel';
     body.textContent = '';
 
+    const href = window.location.href;
+    const placeId = getPlaceIdFromUrl(href);
+    const userId = getUserIdFromUrl(href);
+    const groupId = getGroupIdFromUrl(href);
+    const assetId = getAssetIdFromUrl(href);
+
+    try {
+        const ownId = await getAuthenticatedUserId();
+        if (ownId) {
+            body.appendChild(createCopyRow(t('myUserId'), String(ownId)));
+        }
+    } catch (error) {
+        console.warn('RoValra: Failed to load own user ID for dev panel', error);
+    }
+
+    let hasContext = false;
+
+    if (userId) {
+        body.appendChild(createCopyRow(t('userId'), String(userId)));
+        hasContext = true;
+    }
+
+    if (groupId) {
+        body.appendChild(createCopyRow(t('groupId'), String(groupId)));
+        hasContext = true;
+    }
+
+    if (assetId) {
+        body.appendChild(createCopyRow(t('assetId'), String(assetId)));
+        hasContext = true;
+    }
+
     const dashboardButton = createLinkButton(
         t('openDashboard'),
         'https://create.roblox.com/dashboard/creations',
     );
 
-    const placeId = getPlaceIdFromUrl(window.location.href);
-    if (!placeId) {
+    if (placeId) {
+        body.appendChild(createCopyRow(t('placeId'), String(placeId)));
+        body.appendChild(
+            createCopyRow(
+                t('placeUrl'),
+                `https://www.roblox.com/games/${placeId}/`,
+            ),
+        );
+
+        const universeRow = createCopyRow(t('universeId'), t('loadingIds'));
+        body.appendChild(universeRow);
+        const universeValue = universeRow.querySelector(
+            '.rovalra-devpanel-value',
+        );
+        const universeCopy = universeRow.querySelector(
+            '.rovalra-devpanel-copy',
+        );
+        if (universeCopy) universeCopy.disabled = true;
+
+        const linksRow = document.createElement('div');
+        linksRow.className = 'rovalra-devpanel-links';
+        linksRow.append(
+            createLinkButton(
+                t('openConfigure'),
+                `https://www.roblox.com/places/${placeId}/update`,
+            ),
+            dashboardButton,
+        );
+        body.append(linksRow);
+
+        try {
+            const details = await getPlacesDetails([placeId]);
+            const universeId =
+                details?.[0]?.universeId ?? details?.[0]?.universeID ?? null;
+            if (universeId) {
+                const freshRow = createCopyRow(
+                    t('universeId'),
+                    String(universeId),
+                );
+                universeRow.replaceWith(freshRow);
+            } else if (universeValue) {
+                universeValue.textContent = t('universeLoadFailed');
+            }
+        } catch (error) {
+            console.warn(
+                'RoValra: Failed to load universe ID for dev panel',
+                error,
+            );
+            if (universeValue) {
+                universeValue.textContent = t('universeLoadFailed');
+            }
+        }
+        return;
+    }
+
+    if (!hasContext) {
         const note = document.createElement('p');
         note.className = 'rovalra-devpanel-note';
         note.textContent = t('noGamePage');
         body.append(note, dashboardButton);
-        return;
-    }
-
-    body.appendChild(createCopyRow(t('placeId'), String(placeId)));
-    body.appendChild(
-        createCopyRow(
-            t('placeUrl'),
-            `https://www.roblox.com/games/${placeId}/`,
-        ),
-    );
-
-    const universeRow = createCopyRow(t('universeId'), t('loadingIds'));
-    body.appendChild(universeRow);
-    const universeValue = universeRow.querySelector('.rovalra-devpanel-value');
-    const universeCopy = universeRow.querySelector('.rovalra-devpanel-copy');
-    if (universeCopy) universeCopy.disabled = true;
-
-    const linksRow = document.createElement('div');
-    linksRow.className = 'rovalra-devpanel-links';
-    linksRow.append(
-        createLinkButton(
-            t('openConfigure'),
-            `https://www.roblox.com/places/${placeId}/update`,
-        ),
-        dashboardButton,
-    );
-    body.append(linksRow);
-
-    try {
-        const details = await getPlacesDetails([placeId]);
-        const universeId =
-            details?.[0]?.universeId ?? details?.[0]?.universeID ?? null;
-        if (universeValue) {
-            universeValue.textContent = universeId
-                ? String(universeId)
-                : t('universeLoadFailed');
-        }
-        if (universeCopy) universeCopy.disabled = !universeId;
-        if (universeId) {
-            const freshRow = createCopyRow(t('universeId'), String(universeId));
-            universeRow.replaceWith(freshRow);
-        }
-    } catch (error) {
-        console.warn('RoValra: Failed to load universe ID for dev panel', error);
-        if (universeValue) universeValue.textContent = t('universeLoadFailed');
     }
 }
 
@@ -184,8 +231,22 @@ function openDevPanel() {
     buildPanelBody(body);
 }
 
+function classNameOf(element) {
+    const className = element.className;
+    if (typeof className === 'string') return className;
+    if (className && typeof className.baseVal === 'string') {
+        return className.baseVal;
+    }
+    return '';
+}
+
 function appendPanelItem(nav) {
-    if (nav.querySelector(`[${PANEL_ITEM_ATTR}]`)) return;
+    // Guard the whole sidebar region: sibling lists in the same nav must
+    // not each mint their own copy.
+    const region =
+        nav.closest('#left-navigation-container, #navigation, .navigation') ||
+        nav;
+    if (region.querySelector(`[${PANEL_ITEM_ATTR}]`)) return;
     const templateLink = nav.querySelector('a[href]');
     if (!templateLink) return;
     let templateItem = templateLink;
@@ -199,14 +260,20 @@ function appendPanelItem(nav) {
     if (!link) return;
     stripItemState(item);
 
-    const iconHost = [...link.children].find((child) =>
-        child.querySelector('svg, [class*="icon"], [class*="Icon"]'),
-    );
-    if (iconHost) {
-        iconHost.replaceChildren(createDevIcon());
-    } else {
-        link.prepend(createDevIcon());
-    }
+    // Drop every icon-ish or empty child (original icons, status dots,
+    // badges) so no leftover glyph survives next to our icon. Text-bearing
+    // leaves are kept for the label step below.
+    [...link.children].forEach((child) => {
+        const text = (child.textContent || '').trim();
+        const hasIconDescendant = !!child.querySelector(
+            'svg, icon, [class*="icon"], [class*="Icon"]',
+        );
+        const isIconItself =
+            child.tagName === 'SVG' ||
+            child.tagName === 'ICON' ||
+            /icon/i.test(classNameOf(child));
+        if (!text || hasIconDescendant || isIconItself) child.remove();
+    });
 
     const labelTarget = [...link.querySelectorAll('*')]
         .filter(
@@ -221,6 +288,11 @@ function appendPanelItem(nav) {
         span.textContent = t('sidebarLabel');
         link.appendChild(span);
     }
+
+    const iconHost = document.createElement('span');
+    iconHost.className = 'rovalra-dev-panel-icon';
+    iconHost.appendChild(createDevIcon());
+    link.prepend(iconHost);
 
     link.setAttribute('href', '#rovalra-dev-panel');
     link.setAttribute(PANEL_LINK_ATTR, 'true');
