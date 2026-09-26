@@ -453,35 +453,21 @@ async function fetchRovalraViaBackground(fullUrl, fetchOptions) {
     } catch (error) {
         if (error?.name === 'AbortError') throw error;
 
-        // Attempt 2: same proxy path, but with a fresh cache key and no HTTP
-        // caching. Firefox shares its cache between the background fetch and
-        // the page, and a poisoned/stale entry for the constant
-        // `_RoValraRequest=` key used to surface as an empty server list
-        // instead of a real error.
+        // One retry with a fresh cache key and no HTTP caching: Firefox shares
+        // its cache between the background fetch and the page, and a stale or
+        // poisoned entry for the constant `_RoValraRequest=` key otherwise
+        // turns into an empty result instead of a real error. The background
+        // itself already retries over several transports before failing.
         const separator = fullUrl.includes('?') ? '&' : '?';
         const retryUrl = `${fullUrl}${separator}_RoValraRetry=${Date.now()}`;
         console.warn(
             'RoValra API: Proxied request failed, retrying with a fresh cache key.',
             error,
         );
-
-        try {
-            return await sendRovalraFetchViaBackground(retryUrl, {
-                ...fetchOptions,
-                cache: 'no-store',
-            });
-        } catch (retryError) {
-            if (retryError?.name === 'AbortError') throw retryError;
-
-            // Attempt 3: last resort, ask the page directly. This normally
-            // fails on Firefox because of Roblox's connect-src CSP, but it
-            // costs nothing and covers pages/policies that do allow it.
-            console.warn(
-                'RoValra API: Proxied retry failed, trying a direct request.',
-                retryError,
-            );
-            return fetch(retryUrl, { ...fetchOptions, cache: 'no-store' });
-        }
+        return sendRovalraFetchViaBackground(retryUrl, {
+            ...fetchOptions,
+            cache: 'no-store',
+        });
     }
 }
 
