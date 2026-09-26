@@ -1436,6 +1436,7 @@
     "serverList": {
         "clear": "Clear",
         "noServersApi": "No servers found via the RoValra API.",
+        "apiRequestFailed": "Couldn't reach the RoValra API: {{error}}",
         "allServersInactive": "All servers in this region went inactive",
         "loadErrorApi": "Failed to load servers from RoValra API.",
         "hide": "Hide",

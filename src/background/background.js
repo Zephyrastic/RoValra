@@ -516,6 +516,32 @@ async function fetchRovalraViaBackground(options = {}) {
     return await fetch(parsedUrl.toString(), fetchOptions);
 }
 
+// Bodies handed back to a content script travel as already-decoded text, so
+// the original transfer framing/encoding headers no longer describe them.
+// Forwarding them makes the rebuilt Response unreadable on some engines
+// (Firefox serves brotli/gzip for these responses), which surfaced as
+// "No servers found via the RoValra API" on the Firefox port.
+const PROXY_STRIPPED_RESPONSE_HEADERS = new Set([
+    'content-encoding',
+    'content-length',
+    'transfer-encoding',
+    'connection',
+    'keep-alive',
+    'upgrade',
+    'trailer',
+    'te',
+]);
+
+function collectProxyResponseHeaders(response) {
+    const headers = {};
+    response.headers.forEach((value, key) => {
+        if (!PROXY_STRIPPED_RESPONSE_HEADERS.has(key.toLowerCase())) {
+            headers[key] = value;
+        }
+    });
+    return headers;
+}
+
 // --- RoValra-hosted static assets (images / Google Fonts CSS) ---
 // Roblox's page CSP (img-src) does not allow rovalra.com, and some Firefox
 // environments never fetch fonts.googleapis.com stylesheets, so these
@@ -2550,10 +2576,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         case 'fetchRobloxApi':
             callRobloxApiBackground(request.options)
                 .then(async (response) => {
-                    const headers = {};
-                    response.headers.forEach(
-                        (val, key) => (headers[key] = val),
-                    );
+                    const headers = collectProxyResponseHeaders(response);
                     const body =
                         request.options?.responseType === 'arrayBuffer'
                             ? await response.arrayBuffer().catch(() => null)
@@ -2580,10 +2603,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         case 'rovalraFetch':
             fetchRovalraViaBackground(request.options)
                 .then(async (response) => {
-                    const headers = {};
-                    response.headers.forEach(
-                        (val, key) => (headers[key] = val),
-                    );
+                    const headers = collectProxyResponseHeaders(response);
                     const body = await response.text().catch(() => null);
                     sendResponse({
                         ok: response.ok,

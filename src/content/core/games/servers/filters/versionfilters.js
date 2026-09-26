@@ -95,8 +95,18 @@ async function fetchServersForVersion(version, cursor = null) {
         });
     } catch (error) {
         console.error(`RoValra: Failed to fetch version ${version}.`, error);
-        return null;
+        throw error;
     }
+}
+
+function reportRequestFailure(error) {
+    document.dispatchEvent(new CustomEvent('rovalraRequestError', {
+        detail: {
+            message: ts('serverList.apiRequestFailed', {
+                error: error?.message || String(error),
+            }),
+        },
+    }));
 }
 
 
@@ -128,7 +138,12 @@ async function executeSearch(version) {
         if (clearButton) clearButton.style.display = 'flex';
     }
 
-    const response = await fetchServersForVersion(version, null);
+    const response = await fetchServersForVersion(version, null).catch((error) => {
+        reportRequestFailure(error);
+        return null;
+    });
+    if (!response) return;
+
     const servers = response?.servers || [];
     currentCursor = response?.next_cursor || null;
 
@@ -253,7 +268,14 @@ export function initVersionFilters() {
             return;
         }
 
-        const response = await fetchServersForVersion(version, currentCursor);
+        const response = await fetchServersForVersion(version, currentCursor).catch(
+            (error) => {
+                reportRequestFailure(error);
+                return null;
+            },
+        );
+        if (!response) return;
+
         const servers = response?.servers || [];
         currentCursor = response?.next_cursor || null;
 

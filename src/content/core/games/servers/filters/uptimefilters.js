@@ -51,8 +51,20 @@ async function fetchUptimeServers(value, cursor = null) {
             `RoValra UptimeFilters: Failed to fetch ${value} servers.`,
             error,
         );
-        return null;
+        throw error;
     }
+}
+
+function reportRequestFailure(error) {
+    document.dispatchEvent(
+        new CustomEvent('rovalraRequestError', {
+            detail: {
+                message: ts('serverList.apiRequestFailed', {
+                    error: error?.message || String(error),
+                }),
+            },
+        }),
+    );
 }
 
 async function onFilterChange(value) {
@@ -75,7 +87,12 @@ async function onFilterChange(value) {
         if (clearButton) clearButton.style.display = 'flex';
     }
 
-    const response = await fetchUptimeServers(value, null);
+    const response = await fetchUptimeServers(value, null).catch((error) => {
+        reportRequestFailure(error);
+        return null;
+    });
+    if (!response) return;
+
     const servers = response?.servers || [];
     currentCursor = response?.next_cursor || null;
 
@@ -151,7 +168,14 @@ export function initUptimeFilters() {
             return;
         }
 
-        const response = await fetchUptimeServers(regionCode, currentCursor);
+        const response = await fetchUptimeServers(regionCode, currentCursor).catch(
+            (error) => {
+                reportRequestFailure(error);
+                return null;
+            },
+        );
+        if (!response) return;
+
         const servers = response?.servers || [];
         currentCursor = response?.next_cursor || null;
 

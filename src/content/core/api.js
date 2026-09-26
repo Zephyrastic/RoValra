@@ -331,6 +331,29 @@ export function resetGameJoinErrorCount() {
 
 const IS_FIREFOX = navigator.userAgent.includes('Firefox/');
 
+// A body handed back from the background travels as already-decoded text, so
+// the original transfer framing/encoding headers no longer describe it.
+const PROXY_STRIPPED_RESPONSE_HEADERS = new Set([
+    'content-encoding',
+    'content-length',
+    'transfer-encoding',
+    'connection',
+    'keep-alive',
+    'upgrade',
+    'trailer',
+    'te',
+]);
+
+function sanitizeProxiedHeaders(headers) {
+    const sanitized = {};
+    Object.entries(headers || {}).forEach(([key, value]) => {
+        if (!PROXY_STRIPPED_RESPONSE_HEADERS.has(key.toLowerCase())) {
+            sanitized[key] = value;
+        }
+    });
+    return sanitized;
+}
+
 /**
  * Firefox applies the page's Content-Security-Policy (connect-src) to
  * requests made by content scripts, and Roblox's policy does not list
@@ -339,7 +362,7 @@ const IS_FIREFOX = navigator.userAgent.includes('Firefox/');
  * request through it instead (the rovalra.com server already satisfies
  * CORS for the extension origin by echoing Access-Control-Allow-Origin).
  */
-function fetchRovalraViaBackground(fullUrl, fetchOptions) {
+function sendRovalraFetchViaBackground(fullUrl, fetchOptions) {
     return new Promise((resolve, reject) => {
         const signal = fetchOptions.signal;
         let settled = false;
@@ -410,7 +433,11 @@ function fetchRovalraViaBackground(fullUrl, fetchOptions) {
                     const { body, ...init } = response;
                     settle(
                         resolve,
-                        new Response(nullBodyStatus ? null : body, init),
+                        new Response(nullBodyStatus ? null : body, {
+                            status: init.status,
+                            statusText: init.statusText,
+                            headers: sanitizeProxiedHeaders(init.headers),
+                        }),
                     );
                 } catch (error) {
                     settle(reject, error);
@@ -418,6 +445,44 @@ function fetchRovalraViaBackground(fullUrl, fetchOptions) {
             },
         );
     });
+}
+
+async function fetchRovalraViaBackground(fullUrl, fetchOptions) {
+    try {
+        return await sendRovalraFetchViaBackground(fullUrl, fetchOptions);
+    } catch (error) {
+        if (error?.name === 'AbortError') throw error;
+
+        // Attempt 2: same proxy path, but with a fresh cache key and no HTTP
+        // caching. Firefox shares its cache between the background fetch and
+        // the page, and a poisoned/stale entry for the constant
+        // `_RoValraRequest=` key used to surface as an empty server list
+        // instead of a real error.
+        const separator = fullUrl.includes('?') ? '&' : '?';
+        const retryUrl = `${fullUrl}${separator}_RoValraRetry=${Date.now()}`;
+        console.warn(
+            'RoValra API: Proxied request failed, retrying with a fresh cache key.',
+            error,
+        );
+
+        try {
+            return await sendRovalraFetchViaBackground(retryUrl, {
+                ...fetchOptions,
+                cache: 'no-store',
+            });
+        } catch (retryError) {
+            if (retryError?.name === 'AbortError') throw retryError;
+
+            // Attempt 3: last resort, ask the page directly. This normally
+            // fails on Firefox because of Roblox's connect-src CSP, but it
+            // costs nothing and covers pages/policies that do allow it.
+            console.warn(
+                'RoValra API: Proxied retry failed, trying a direct request.',
+                retryError,
+            );
+            return fetch(retryUrl, { ...fetchOptions, cache: 'no-store' });
+        }
+    }
 }
 
 export async function callRobloxApi(options) {
@@ -549,7 +614,13 @@ export async function callRobloxApi(options) {
                             invalidateApiKey();
                         }
                         const { body, ...init } = response;
-                        resolve(new Response(body, init));
+                        resolve(
+                            new Response(body, {
+                                status: init.status,
+                                statusText: init.statusText,
+                                headers: sanitizeProxiedHeaders(init.headers),
+                            }),
+                        );
                     },
                 );
             });
